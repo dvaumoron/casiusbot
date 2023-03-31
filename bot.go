@@ -41,6 +41,8 @@ func main() {
 		fmt.Println("An error occured :", err)
 	}
 
+	session.Identify.Intents |= discordgo.IntentGuildMembers
+
 	cmd := &discordgo.ApplicationCommand{
 		Name:        "apply-prefix",
 		Description: "Apply the prefix rule to all User",
@@ -65,8 +67,6 @@ func main() {
 	}
 	defer session.Close()
 
-	appId := session.State.User.ID
-
 	guildRoles, err := session.GuildRoles(guildId)
 	if err != nil {
 		log.Println("Cannot retrieve roles of the guild :", err)
@@ -81,6 +81,7 @@ func main() {
 	}
 
 	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
+		log.Println("Member update detected")
 		nickName := u.Member.Nick
 		if nickName == "" {
 			nickName = u.User.Username
@@ -89,7 +90,7 @@ func main() {
 		newNickName := transformName(nickName, u.Roles, roleIdToPrefix, prefixes)
 		if newNickName != nickName {
 			if err = s.GuildMemberNickname(u.GuildID, u.User.ID, newNickName); err != nil {
-				log.Println("An error occurred :", err)
+				log.Println("An error occurred (1) :", err)
 			}
 		}
 	})
@@ -108,14 +109,14 @@ func main() {
 					newNickName := transformName(nickName, guildMember.Roles, roleIdToPrefix, prefixes)
 					if newNickName != nickName {
 						if err = s.GuildMemberNickname(i.GuildID, guildMember.User.ID, newNickName); err != nil {
-							log.Println("An error occurred :", err)
+							log.Println("An error occurred (2) :", err)
 							returnMsg = errUserMsg
 							break
 						}
 					}
 				}
 			} else {
-				log.Println("An error occurred :", err)
+				log.Println("An error occurred (3) :", err)
 				returnMsg = errUserMsg
 			}
 
@@ -126,6 +127,7 @@ func main() {
 		}
 	})
 
+	appId := session.State.User.ID
 	cmd, err = session.ApplicationCommandCreate(appId, guildId, cmd)
 	if err != nil {
 		log.Println("Cannot create command :", err)
