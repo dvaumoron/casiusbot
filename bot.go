@@ -97,7 +97,7 @@ func main() {
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if i.ApplicationCommandData().Name == cmd.Name {
 			guildMembers, err := s.GuildMembers(i.GuildID, "", 1000)
-			returnMsg := "Hey there ! Congratulations, you have just executed the apply-prexix command."
+			returnMsg := "Hey there ! Congratulations, you have just executed the apply-prefix command."
 			if err == nil {
 				for _, guildMember := range guildMembers {
 					nickName := guildMember.Nick
