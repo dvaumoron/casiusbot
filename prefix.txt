@@ -1,5 +1,5 @@
-barbare=🪓
-druide=🐻
-nécromancien=💀
-sorcier=🧙
-voleur=🏹
+Barbare=🪓
+Druide=🐻
+Nécromancien=💀
+Sorcier=🧙
+Voleur=🏹
