@@ -1,0 +1,5 @@
+barbare=
+druide=
+nécromancien=
+sorcier=
+voleur=
