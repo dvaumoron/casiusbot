@@ -29,14 +29,14 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const errUserMsg = "Hey there ! I got a problem trying to execute the apply-prexix command."
+const errUserMsg = "Hey there ! I got a problem trying to execute the apply-prefix command."
 
 func main() {
 	if godotenv.Overload() == nil {
 		fmt.Println("Loaded .env file")
 	}
 
-	dg, err := discordgo.New("Bot " + os.Getenv("BOT_TOKEN"))
+	session, err := discordgo.New("Bot " + os.Getenv("BOT_TOKEN"))
 	if err != nil {
 		fmt.Println("An error occured :", err)
 	}
@@ -59,7 +59,6 @@ func main() {
 
 	guildId := os.Getenv("GUILD_ID")
 
-	var session *discordgo.Session
 	err = session.Open()
 	if err != nil {
 		log.Fatalln("Cannot open the session :", err)
@@ -74,10 +73,26 @@ func main() {
 		return
 	}
 
-	roleIdToName := map[string]string{}
+	roleIdToPrefix := map[string]string{}
 	for _, guildRole := range guildRoles {
-		roleIdToName[guildRole.ID] = guildRole.Name
+		if prefix, ok := nameToPrefix[guildRole.Name]; ok {
+			roleIdToPrefix[guildRole.ID] = prefix
+		}
 	}
+
+	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
+		nickName := u.Member.Nick
+		if nickName == "" {
+			nickName = u.User.Username
+		}
+
+		newNickName := transformName(nickName, u.Roles, roleIdToPrefix, prefixes)
+		if newNickName != nickName {
+			if err = s.GuildMemberNickname(guildId, u.User.ID, newNickName); err != nil {
+				log.Println("An error occurred :", err)
+			}
+		}
+	})
 
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if i.ApplicationCommandData().Name == cmd.Name {
@@ -90,7 +105,7 @@ func main() {
 						nickName = guildMember.User.Username
 					}
 
-					newNickName := transformName(nickName, guildMember.Roles, roleIdToName, nameToPrefix, prefixes)
+					newNickName := transformName(nickName, guildMember.Roles, roleIdToPrefix, prefixes)
 					if newNickName != nickName {
 						if err = s.GuildMemberNickname(guildId, guildMember.User.ID, newNickName); err != nil {
 							log.Println("An error occurred :", err)
@@ -146,11 +161,10 @@ func readPrefixConfig(path string) (map[string]string, error) {
 	return nameToPrefix, nil
 }
 
-func transformName(nickName string, roleIds []string, roleIdToName map[string]string, nameToPrefix map[string]string, prefixes []string) string {
+func transformName(nickName string, roleIds []string, roleIdToPrefix map[string]string, prefixes []string) string {
 	nickName = cleanPrefix(nickName, prefixes)
 	for _, roleId := range roleIds {
-		prefix, ok := nameToPrefix[roleIdToName[roleId]]
-		if ok {
+		if prefix, ok := roleIdToPrefix[roleId]; ok {
 			// prefix already end with a space
 			return prefix + nickName
 		}
