@@ -29,8 +29,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const errUserMsg = "Hey there ! I got a problem trying to execute the apply-prefix command."
-
 func main() {
 	if godotenv.Overload() == nil {
 		fmt.Println("Loaded .env file")
@@ -40,6 +38,9 @@ func main() {
 	if err != nil {
 		fmt.Println("An error occured :", err)
 	}
+
+	okCmdMsg := os.Getenv("MESSAGE_CMD_OK")
+	errCmdMsg := os.Getenv("MESSAGE_CMD_ERROR")
 
 	session.Identify.Intents |= discordgo.IntentGuildMembers
 
@@ -98,7 +99,7 @@ func main() {
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if i.ApplicationCommandData().Name == cmd.Name {
 			guildMembers, err := s.GuildMembers(i.GuildID, "", 1000)
-			returnMsg := "Hey there ! Congratulations, you have just executed the apply-prefix command."
+			returnMsg := okCmdMsg
 			if err == nil {
 				for _, guildMember := range guildMembers {
 					nickName := guildMember.Nick
@@ -110,14 +111,14 @@ func main() {
 					if newNickName != nickName {
 						if err = s.GuildMemberNickname(i.GuildID, guildMember.User.ID, newNickName); err != nil {
 							log.Println("An error occurred (2) :", err)
-							returnMsg = errUserMsg
+							returnMsg = errCmdMsg
 							break
 						}
 					}
 				}
 			} else {
 				log.Println("An error occurred (3) :", err)
-				returnMsg = errUserMsg
+				returnMsg = errCmdMsg
 			}
 
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
