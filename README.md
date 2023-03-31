@@ -1,0 +1,2 @@
+# casiusbot
+A discord bot
