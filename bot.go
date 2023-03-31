@@ -18,13 +18,18 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
 )
+
+const errUserMsg = "Hey there ! I got a problem trying to execute the apply-prexix command."
 
 func main() {
 	if godotenv.Overload() == nil {
@@ -41,30 +46,123 @@ func main() {
 		Description: "Apply the prefix rule to all User",
 	}
 
+	filePath := os.Getenv("PREFIX_FILE_PATH")
+	nameToPrefix, err := readPrefixConfig(filePath)
+	if err != nil {
+		log.Fatalln("Cannot open the configuration file :", err)
+	}
+
+	prefixes := make([]string, 0, len(nameToPrefix))
+	for _, prefix := range nameToPrefix {
+		prefixes = append(prefixes, prefix)
+	}
+
+	guildId := os.Getenv("GUILD_ID")
+
 	var session *discordgo.Session
-	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		if i.ApplicationCommandData().Name == cmd.Name {
-			// TODO
-
-			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: "Hey there! Congratulations, you have just executed the apply-prexix command.",
-				},
-			})
-		}
-	})
-
 	err = session.Open()
 	if err != nil {
 		log.Fatalln("Cannot open the session :", err)
 	}
 	defer session.Close()
 
-	cmd, err = session.ApplicationCommandCreate(session.State.User.ID, os.Getenv("GUILD_ID"), cmd)
+	appId := session.State.User.ID
+
+	guildRoles, err := session.GuildRoles(guildId)
 	if err != nil {
-		log.Fatal("Cannot create command :", err)
+		log.Println("Cannot retrieve roles of the guild :", err)
+		return
 	}
 
-	dg.Gateway()
+	roleIdToName := map[string]string{}
+	for _, guildRole := range guildRoles {
+		roleIdToName[guildRole.ID] = guildRole.Name
+	}
+
+	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		if i.ApplicationCommandData().Name == cmd.Name {
+			guildMembers, err := s.GuildMembers(i.GuildID, "", 1000)
+			returnMsg := "Hey there ! Congratulations, you have just executed the apply-prexix command."
+			if err == nil {
+				for _, guildMember := range guildMembers {
+					nickName := guildMember.Nick
+					if nickName == "" {
+						nickName = guildMember.User.Username
+					}
+
+					newNickName := transformName(nickName, guildMember.Roles, roleIdToName, nameToPrefix, prefixes)
+					if newNickName != nickName {
+						if err = s.GuildMemberNickname(guildId, guildMember.User.ID, newNickName); err != nil {
+							log.Println("An error occurred :", err)
+							returnMsg = errUserMsg
+							break
+						}
+					}
+				}
+			} else {
+				log.Println("An error occurred :", err)
+				returnMsg = errUserMsg
+			}
+
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{Content: returnMsg},
+			})
+		}
+	})
+
+	cmd, err = session.ApplicationCommandCreate(appId, guildId, cmd)
+	if err != nil {
+		log.Println("Cannot create command :", err)
+		return
+	}
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt)
+	log.Println("Press Ctrl+C to exit")
+	<-stop
+
+	if err = session.ApplicationCommandDelete(appId, guildId, cmd.ID); err != nil {
+		log.Println("Cannot delete command :", err)
+	}
+}
+
+func readPrefixConfig(path string) (map[string]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	nameToPrefix := map[string]string{}
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if len(line) != 0 && line[0] != '#' {
+			sepIndex := strings.IndexByte(line, '=')
+			nameToPrefix[strings.TrimSpace(line[:sepIndex])] = strings.TrimSpace(line[sepIndex+1:]) + " "
+		}
+	}
+	return nameToPrefix, nil
+}
+
+func transformName(nickName string, roleIds []string, roleIdToName map[string]string, nameToPrefix map[string]string, prefixes []string) string {
+	nickName = cleanPrefix(nickName, prefixes)
+	for _, roleId := range roleIds {
+		prefix, ok := nameToPrefix[roleIdToName[roleId]]
+		if ok {
+			// prefix already end with a space
+			return prefix + nickName
+		}
+	}
+	return nickName
+}
+
+func cleanPrefix(nickName string, prefixes []string) string {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(nickName, prefix) {
+			return nickName[len(prefix):]
+		}
+	}
+	return nickName
 }
