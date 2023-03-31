@@ -19,6 +19,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/bwmarrin/discordgo"
@@ -35,4 +36,35 @@ func main() {
 		fmt.Println("An error occured :", err)
 	}
 
+	cmd := &discordgo.ApplicationCommand{
+		Name:        "apply-prefix",
+		Description: "Apply the prefix rule to all User",
+	}
+
+	var session *discordgo.Session
+	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		if i.ApplicationCommandData().Name == cmd.Name {
+			// TODO
+
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: "Hey there! Congratulations, you have just executed the apply-prexix command.",
+				},
+			})
+		}
+	})
+
+	err = session.Open()
+	if err != nil {
+		log.Fatalln("Cannot open the session :", err)
+	}
+	defer session.Close()
+
+	cmd, err = session.ApplicationCommandCreate(session.State.User.ID, os.Getenv("GUILD_ID"), cmd)
+	if err != nil {
+		log.Fatal("Cannot create command :", err)
+	}
+
+	dg.Gateway()
 }
