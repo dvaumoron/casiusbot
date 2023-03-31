@@ -88,7 +88,7 @@ func main() {
 
 		newNickName := transformName(nickName, u.Roles, roleIdToPrefix, prefixes)
 		if newNickName != nickName {
-			if err = s.GuildMemberNickname(guildId, u.User.ID, newNickName); err != nil {
+			if err = s.GuildMemberNickname(u.GuildID, u.User.ID, newNickName); err != nil {
 				log.Println("An error occurred :", err)
 			}
 		}
@@ -107,7 +107,7 @@ func main() {
 
 					newNickName := transformName(nickName, guildMember.Roles, roleIdToPrefix, prefixes)
 					if newNickName != nickName {
-						if err = s.GuildMemberNickname(guildId, guildMember.User.ID, newNickName); err != nil {
+						if err = s.GuildMemberNickname(i.GuildID, guildMember.User.ID, newNickName); err != nil {
 							log.Println("An error occurred :", err)
 							returnMsg = errUserMsg
 							break
