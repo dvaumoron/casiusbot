@@ -21,12 +21,15 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"math/rand"
+	"net/http"
 	"os"
 	"os/signal"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
@@ -253,6 +256,9 @@ func main() {
 		log.Println("Cannot create clean command :", err)
 	}
 
+	bgChangeGameStatus(session)
+	bgServeHttp()
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
 	log.Println("Press Ctrl+C to exit")
@@ -353,4 +359,29 @@ func buildNiceMsg(baseMsg string, roleNameToPrefix map[string]string) string {
 		buffer.WriteString(namePrefix[1])
 	}
 	return buffer.String()
+}
+
+func bgChangeGameStatus(session *discordgo.Session) {
+	ticker := time.Tick(10 * time.Second)
+	games := strings.Split(os.Getenv("GAME_LIST"), ",")
+	for index, game := range games {
+		games[index] = strings.TrimSpace(game)
+	}
+	gamesLen := len(games)
+	go func() {
+		for range ticker {
+			session.UpdateGameStatus(0, games[rand.Intn(gamesLen)])
+		}
+	}()
+}
+
+func bgServeHttp() {
+	responseData := []byte("Hello World !")
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write(responseData)
+	})
+
+	go func() {
+		http.ListenAndServe(":80", nil)
+	}()
 }
