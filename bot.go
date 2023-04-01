@@ -23,6 +23,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +31,8 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
 )
+
+type empty struct{}
 
 func main() {
 	if godotenv.Overload() == nil {
@@ -41,9 +44,12 @@ func main() {
 		fmt.Println("An error occured :", err)
 	}
 
+	cmdRoles := strings.Split(os.Getenv("ROLES_CMD"), ",")
+
 	okCmdMsg := os.Getenv("MESSAGE_CMD_OK")
 	errPartialCmdMsg := os.Getenv("MESSAGE_CMD_PARTIAL_ERROR")
 	errGlobalCmdMsg := os.Getenv("MESSAGE_CMD_GLOBAL_ERROR")
+	errUnauthorizedCmdMsg := os.Getenv("MESSAGE_CMD_UNAUTHORIZED")
 
 	session.Identify.Intents |= discordgo.IntentGuildMembers
 
@@ -57,13 +63,15 @@ func main() {
 	}
 
 	filePath := os.Getenv("PREFIX_FILE_PATH")
-	nameToPrefix, err := readPrefixConfig(filePath)
+	roleNameToPrefix, err := readPrefixConfig(filePath)
 	if err != nil {
 		log.Fatalln("Cannot open the configuration file :", err)
 	}
 
-	prefixes := make([]string, 0, len(nameToPrefix))
-	for _, prefix := range nameToPrefix {
+	errUnauthorizedCmdMsg = buildNiceMsg(errUnauthorizedCmdMsg, roleNameToPrefix)
+
+	prefixes := make([]string, 0, len(roleNameToPrefix))
+	for _, prefix := range roleNameToPrefix {
 		prefixes = append(prefixes, prefix)
 	}
 
@@ -81,6 +89,8 @@ func main() {
 		return
 	}
 	ownerId := guild.OwnerID
+	// emptying data no longer useful for GC cleaning
+	guild = nil
 
 	guildRoles, err := session.GuildRoles(guildId)
 	if err != nil {
@@ -89,11 +99,26 @@ func main() {
 	}
 
 	roleIdToPrefix := map[string]string{}
+	roleNameToId := map[string]string{}
 	for _, guildRole := range guildRoles {
-		if prefix, ok := nameToPrefix[guildRole.Name]; ok {
-			roleIdToPrefix[guildRole.ID] = prefix
+		name := guildRole.Name
+		id := guildRole.ID
+		roleNameToId[name] = id
+		if prefix, ok := roleNameToPrefix[name]; ok {
+			roleIdToPrefix[id] = prefix
 		}
 	}
+	// emptying data no longer useful for GC cleaning
+	roleNameToPrefix = nil
+	guildRoles = nil
+
+	cmdRoleIds := map[string]empty{}
+	for _, cmdRole := range cmdRoles {
+		cmdRoleIds[roleNameToId[strings.TrimSpace(cmdRole)]] = empty{}
+	}
+	// emptying data no longer useful for GC cleaning
+	roleNameToId = nil
+	cmdRoles = nil
 
 	var mutex sync.RWMutex
 	cmdworking := false
@@ -123,84 +148,92 @@ func main() {
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		switch i.ApplicationCommandData().Name {
 		case applyCmd.Name:
-			mutex.Lock()
-			cmdworking = true
-			mutex.Unlock()
-
-			guildMembers, err := s.GuildMembers(i.GuildID, "", 1000)
 			returnMsg := okCmdMsg
-			if err == nil {
-				counterError := 0
-				for _, guildMember := range guildMembers {
-					if userId := guildMember.User.ID; userId != ownerId {
-						nickName := guildMember.Nick
-						if nickName == "" {
-							nickName = guildMember.User.Username
-						}
+			if cmdAuthorized(i.Member.Roles, cmdRoleIds) {
+				mutex.Lock()
+				cmdworking = true
+				mutex.Unlock()
 
-						newNickName := transformName(nickName, guildMember.Roles, roleIdToPrefix, prefixes)
-						if newNickName != nickName {
-							if err = s.GuildMemberNickname(i.GuildID, guildMember.User.ID, newNickName); err != nil {
-								log.Println("An error occurred (2) :", err)
-								counterError++
+				guildMembers, err := s.GuildMembers(i.GuildID, "", 1000)
+				if err == nil {
+					counterError := 0
+					for _, guildMember := range guildMembers {
+						if userId := guildMember.User.ID; userId != ownerId {
+							nickName := guildMember.Nick
+							if nickName == "" {
+								nickName = guildMember.User.Username
+							}
+
+							newNickName := transformName(nickName, guildMember.Roles, roleIdToPrefix, prefixes)
+							if newNickName != nickName {
+								if err = s.GuildMemberNickname(i.GuildID, guildMember.User.ID, newNickName); err != nil {
+									log.Println("An error occurred (2) :", err)
+									counterError++
+								}
 							}
 						}
 					}
+
+					if counterError != 0 {
+						returnMsg = buildPartialErrorString(errPartialCmdMsg, counterError)
+					}
+				} else {
+					log.Println("An error occurred (3) :", err)
+					returnMsg = errGlobalCmdMsg
 				}
 
-				if counterError != 0 {
-					returnMsg = buildPartialErrorString(errPartialCmdMsg, counterError)
-				}
+				mutex.Lock()
+				cmdworking = false
+				mutex.Unlock()
 			} else {
-				log.Println("An error occurred (3) :", err)
-				returnMsg = errGlobalCmdMsg
+				returnMsg = errUnauthorizedCmdMsg
 			}
-
-			mutex.Lock()
-			cmdworking = false
-			mutex.Unlock()
 
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{Content: returnMsg},
 			})
 		case cleanCmd.Name:
-			mutex.Lock()
-			cmdworking = true
-			mutex.Unlock()
-
-			guildMembers, err := s.GuildMembers(i.GuildID, "", 1000)
 			returnMsg := okCmdMsg
-			if err == nil {
-				counterError := 0
-				for _, guildMember := range guildMembers {
-					if userId := guildMember.User.ID; userId != ownerId {
-						nickName := guildMember.Nick
-						if nickName == "" {
-							nickName = guildMember.User.Username
-						}
+			if cmdAuthorized(i.Member.Roles, cmdRoleIds) {
+				mutex.Lock()
+				cmdworking = true
+				mutex.Unlock()
 
-						newNickName := cleanPrefix(nickName, prefixes)
-						if newNickName != nickName {
-							if err = s.GuildMemberNickname(i.GuildID, guildMember.User.ID, newNickName); err != nil {
-								log.Println("An error occurred (4) :", err)
-								counterError++
+				guildMembers, err := s.GuildMembers(i.GuildID, "", 1000)
+				if err == nil {
+					counterError := 0
+					for _, guildMember := range guildMembers {
+						if userId := guildMember.User.ID; userId != ownerId {
+							nickName := guildMember.Nick
+							if nickName == "" {
+								nickName = guildMember.User.Username
+							}
+
+							newNickName := cleanPrefix(nickName, prefixes)
+							if newNickName != nickName {
+								if err = s.GuildMemberNickname(i.GuildID, guildMember.User.ID, newNickName); err != nil {
+									log.Println("An error occurred (4) :", err)
+									counterError++
+								}
 							}
 						}
 					}
+
+					if counterError != 0 {
+						returnMsg = buildPartialErrorString(errPartialCmdMsg, counterError)
+					}
+				} else {
+					log.Println("An error occurred (5) :", err)
+					returnMsg = errGlobalCmdMsg
 				}
 
-				if counterError != 0 {
-					returnMsg = buildPartialErrorString(errPartialCmdMsg, counterError)
-				}
+				mutex.Lock()
+				cmdworking = false
+				mutex.Unlock()
 			} else {
-				log.Println("An error occurred (5) :", err)
-				returnMsg = errGlobalCmdMsg
+				returnMsg = errUnauthorizedCmdMsg
 			}
-
-			mutex.Lock()
-			cmdworking = false
-			mutex.Unlock()
 
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -277,5 +310,47 @@ func buildPartialErrorString(s string, i int) string {
 	buffer.WriteString(s)
 	buffer.WriteByte(' ')
 	buffer.WriteString(strconv.Itoa(i))
+	return buffer.String()
+}
+
+func cmdAuthorized(laucherRoleIds []string, cmdRoleIds map[string]empty) bool {
+	for _, launcherRoleId := range laucherRoleIds {
+		if _, ok := cmdRoleIds[launcherRoleId]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+type namePrefixSortByName [][2]string
+
+func (nps namePrefixSortByName) Len() int {
+	return len(nps)
+}
+
+func (nps namePrefixSortByName) Less(i, j int) bool {
+	return nps[i][0] < nps[j][0]
+}
+
+func (nps namePrefixSortByName) Swap(i, j int) {
+	tmp := nps[i]
+	nps[i] = nps[j]
+	nps[j] = tmp
+}
+
+func buildNiceMsg(baseMsg string, roleNameToPrefix map[string]string) string {
+	var buffer strings.Builder
+	buffer.WriteString(baseMsg)
+	namePrefixes := make([][2]string, 0, len(roleNameToPrefix))
+	for name, prefix := range roleNameToPrefix {
+		namePrefixes = append(namePrefixes, [2]string{name, prefix})
+	}
+	sort.Sort(namePrefixSortByName(namePrefixes))
+	for _, namePrefix := range namePrefixes {
+		buffer.WriteByte('\n')
+		buffer.WriteString(namePrefix[0])
+		buffer.WriteString(" = ")
+		buffer.WriteString(namePrefix[1])
+	}
 	return buffer.String()
 }
