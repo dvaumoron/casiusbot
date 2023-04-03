@@ -92,14 +92,9 @@ func main() {
 		return
 	}
 	ownerId := guild.OwnerID
+	guildRoles := guild.Roles
 	// emptying data no longer useful for GC cleaning
 	guild = nil
-
-	guildRoles, err := session.GuildRoles(guildId)
-	if err != nil {
-		log.Println("Cannot retrieve roles of the guild :", err)
-		return
-	}
 
 	roleIdToPrefix := map[string]string{}
 	roleNameToId := map[string]string{}
@@ -122,6 +117,16 @@ func main() {
 	// emptying data no longer useful for GC cleaning
 	roleNameToId = nil
 	cmdRoles = nil
+
+	guildMembers, err := session.GuildMembers(guildId, "", 1000)
+	if err != nil {
+		log.Println("Cannot retrieve members of the guild :", err)
+		return
+	}
+	counterError := applyPrefix(session, guildMembers, guildId, ownerId, roleIdToPrefix, prefixes)
+	if counterError != 0 {
+		log.Println("Trying to apply-prefix at startup generate errors :", counterError)
+	}
 
 	var mutex sync.RWMutex
 	cmdworking := false
@@ -159,24 +164,7 @@ func main() {
 
 				guildMembers, err := s.GuildMembers(i.GuildID, "", 1000)
 				if err == nil {
-					counterError := 0
-					for _, guildMember := range guildMembers {
-						if userId := guildMember.User.ID; userId != ownerId {
-							nickName := guildMember.Nick
-							if nickName == "" {
-								nickName = guildMember.User.Username
-							}
-
-							newNickName := transformName(nickName, guildMember.Roles, roleIdToPrefix, prefixes)
-							if newNickName != nickName {
-								if err = s.GuildMemberNickname(i.GuildID, guildMember.User.ID, newNickName); err != nil {
-									log.Println("An error occurred (2) :", err)
-									counterError++
-								}
-							}
-						}
-					}
-
+					counterError := applyPrefix(s, guildMembers, i.GuildID, ownerId, roleIdToPrefix, prefixes)
 					if counterError != 0 {
 						returnMsg = buildPartialErrorString(errPartialCmdMsg, counterError)
 					}
@@ -311,14 +299,6 @@ func cleanPrefix(nickName string, prefixes []string) string {
 	return nickName
 }
 
-func buildPartialErrorString(s string, i int) string {
-	var buffer strings.Builder
-	buffer.WriteString(s)
-	buffer.WriteByte(' ')
-	buffer.WriteString(strconv.Itoa(i))
-	return buffer.String()
-}
-
 func cmdAuthorized(laucherRoleIds []string, cmdRoleIds map[string]empty) bool {
 	for _, launcherRoleId := range laucherRoleIds {
 		if _, ok := cmdRoleIds[launcherRoleId]; ok {
@@ -326,6 +306,35 @@ func cmdAuthorized(laucherRoleIds []string, cmdRoleIds map[string]empty) bool {
 		}
 	}
 	return false
+}
+
+func applyPrefix(s *discordgo.Session, guildMembers []*discordgo.Member, guildId string, ownerId string, roleIdToPrefix map[string]string, prefixes []string) int {
+	counterError := 0
+	for _, guildMember := range guildMembers {
+		if userId := guildMember.User.ID; userId != ownerId {
+			nickName := guildMember.Nick
+			if nickName == "" {
+				nickName = guildMember.User.Username
+			}
+
+			newNickName := transformName(nickName, guildMember.Roles, roleIdToPrefix, prefixes)
+			if newNickName != nickName {
+				if err := s.GuildMemberNickname(guildId, guildMember.User.ID, newNickName); err != nil {
+					log.Println("An error occurred (2) :", err)
+					counterError++
+				}
+			}
+		}
+	}
+	return counterError
+}
+
+func buildPartialErrorString(s string, i int) string {
+	var buffer strings.Builder
+	buffer.WriteString(s)
+	buffer.WriteByte(' ')
+	buffer.WriteString(strconv.Itoa(i))
+	return buffer.String()
 }
 
 type namePrefixSortByName [][2]string
