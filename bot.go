@@ -284,15 +284,18 @@ func readPrefixConfig(path string) (map[string]string, error) {
 
 func transformName(nickName string, defaultRoleId string, roleIds []string, roleIdToPrefix map[string]string, prefixes []string) (string, bool, bool) {
 	nickName = cleanPrefix(nickName, prefixes)
-	hasDefault, hasPrefix := false, false
+	hasDefault, hasPrefix, notDone := false, false, true
 	for _, roleId := range roleIds {
 		if roleId == defaultRoleId {
 			hasDefault = true
 		}
 		if prefix, ok := roleIdToPrefix[roleId]; ok {
 			hasPrefix = true
-			// prefix already end with a space
-			nickName = prefix + nickName
+			if notDone {
+				notDone = false
+				// prefix already end with a space
+				nickName = prefix + nickName
+			}
 		}
 	}
 	return nickName, hasDefault, hasPrefix
