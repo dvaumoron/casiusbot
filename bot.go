@@ -44,10 +44,12 @@ func main() {
 
 	session, err := discordgo.New("Bot " + os.Getenv("BOT_TOKEN"))
 	if err != nil {
-		fmt.Println("An error occured :", err)
+		fmt.Println("Cannot create the bot :", err)
 	}
 
 	cmdRoles := strings.Split(os.Getenv("ROLES_CMD"), ",")
+	defaultRole := os.Getenv("DEFAULT_ROLE")
+	ignoredRoles := strings.Split(os.Getenv("IGNORED_ROLES"), ",")
 
 	okCmdMsg := os.Getenv("MESSAGE_CMD_OK")
 	errPartialCmdMsg := os.Getenv("MESSAGE_CMD_PARTIAL_ERROR")
@@ -115,15 +117,26 @@ func main() {
 		cmdRoleIds[roleNameToId[strings.TrimSpace(cmdRole)]] = empty{}
 	}
 	// emptying data no longer useful for GC cleaning
-	roleNameToId = nil
 	cmdRoles = nil
+
+	defaultRoleId := roleNameToId[defaultRole]
+	// emptying data no longer useful for GC cleaning
+	defaultRole = ""
+
+	ignoredRoleIds := map[string]empty{}
+	for _, ignoredRole := range ignoredRoles {
+		ignoredRoleIds[roleNameToId[strings.TrimSpace(ignoredRole)]] = empty{}
+	}
+	// emptying data no longer useful for GC cleaning
+	ignoredRoles = nil
+	roleNameToId = nil
 
 	guildMembers, err := session.GuildMembers(guildId, "", 1000)
 	if err != nil {
 		log.Println("Cannot retrieve members of the guild :", err)
 		return
 	}
-	counterError := applyPrefix(session, guildMembers, guildId, ownerId, roleIdToPrefix, prefixes)
+	counterError := applyPrefixes(session, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, roleIdToPrefix, prefixes)
 	if counterError != 0 {
 		log.Println("Trying to apply-prefix at startup generate errors :", counterError)
 	}
@@ -138,17 +151,7 @@ func main() {
 			mutex.RUnlock()
 
 			if !cmdworking2 {
-				nickName := u.Member.Nick
-				if nickName == "" {
-					nickName = u.User.Username
-				}
-
-				newNickName := transformName(nickName, u.Roles, roleIdToPrefix, prefixes)
-				if newNickName != nickName {
-					if err = s.GuildMemberNickname(u.GuildID, userId, newNickName); err != nil {
-						log.Println("An error occurred (1) :", err)
-					}
-				}
+				applyPrefix(s, u.Member, u.GuildID, ownerId, defaultRoleId, ignoredRoleIds, roleIdToPrefix, prefixes)
 			}
 		}
 	})
@@ -157,19 +160,19 @@ func main() {
 		switch i.ApplicationCommandData().Name {
 		case applyCmd.Name:
 			returnMsg := okCmdMsg
-			if cmdAuthorized(i.Member.Roles, cmdRoleIds) {
+			if roleIdInSet(i.Member.Roles, cmdRoleIds) {
 				mutex.Lock()
 				cmdworking = true
 				mutex.Unlock()
 
 				guildMembers, err := s.GuildMembers(i.GuildID, "", 1000)
 				if err == nil {
-					counterError := applyPrefix(s, guildMembers, i.GuildID, ownerId, roleIdToPrefix, prefixes)
+					counterError := applyPrefixes(s, guildMembers, i.GuildID, ownerId, defaultRoleId, ignoredRoleIds, roleIdToPrefix, prefixes)
 					if counterError != 0 {
 						returnMsg = buildPartialErrorString(errPartialCmdMsg, counterError)
 					}
 				} else {
-					log.Println("An error occurred (3) :", err)
+					log.Println("An error occurred (1) :", err)
 					returnMsg = errGlobalCmdMsg
 				}
 
@@ -186,7 +189,7 @@ func main() {
 			})
 		case cleanCmd.Name:
 			returnMsg := okCmdMsg
-			if cmdAuthorized(i.Member.Roles, cmdRoleIds) {
+			if roleIdInSet(i.Member.Roles, cmdRoleIds) {
 				mutex.Lock()
 				cmdworking = true
 				mutex.Unlock()
@@ -204,7 +207,7 @@ func main() {
 							newNickName := cleanPrefix(nickName, prefixes)
 							if newNickName != nickName {
 								if err = s.GuildMemberNickname(i.GuildID, guildMember.User.ID, newNickName); err != nil {
-									log.Println("An error occurred (4) :", err)
+									log.Println("An error occurred (2) :", err)
 									counterError++
 								}
 							}
@@ -215,7 +218,7 @@ func main() {
 						returnMsg = buildPartialErrorString(errPartialCmdMsg, counterError)
 					}
 				} else {
-					log.Println("An error occurred (5) :", err)
+					log.Println("An error occurred (3) :", err)
 					returnMsg = errGlobalCmdMsg
 				}
 
@@ -279,15 +282,20 @@ func readPrefixConfig(path string) (map[string]string, error) {
 	return nameToPrefix, nil
 }
 
-func transformName(nickName string, roleIds []string, roleIdToPrefix map[string]string, prefixes []string) string {
+func transformName(nickName string, defaultRoleId string, roleIds []string, roleIdToPrefix map[string]string, prefixes []string) (string, bool, bool) {
 	nickName = cleanPrefix(nickName, prefixes)
+	hasDefault, hasPrefix := false, false
 	for _, roleId := range roleIds {
+		if roleId == defaultRoleId {
+			hasDefault = true
+		}
 		if prefix, ok := roleIdToPrefix[roleId]; ok {
+			hasPrefix = true
 			// prefix already end with a space
-			return prefix + nickName
+			nickName = prefix + nickName
 		}
 	}
-	return nickName
+	return nickName, hasDefault, hasPrefix
 }
 
 func cleanPrefix(nickName string, prefixes []string) string {
@@ -299,30 +307,51 @@ func cleanPrefix(nickName string, prefixes []string) string {
 	return nickName
 }
 
-func cmdAuthorized(laucherRoleIds []string, cmdRoleIds map[string]empty) bool {
-	for _, launcherRoleId := range laucherRoleIds {
-		if _, ok := cmdRoleIds[launcherRoleId]; ok {
+func roleIdInSet(roleIds []string, roleIdSet map[string]empty) bool {
+	for _, roleId := range roleIds {
+		if _, ok := roleIdSet[roleId]; ok {
 			return true
 		}
 	}
 	return false
 }
 
-func applyPrefix(s *discordgo.Session, guildMembers []*discordgo.Member, guildId string, ownerId string, roleIdToPrefix map[string]string, prefixes []string) int {
+func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, guildId string, ownerId string, defaultRoleId string, ignoredRoleIds map[string]empty, roleIdToPrefix map[string]string, prefixes []string) int {
 	counterError := 0
 	for _, guildMember := range guildMembers {
-		if userId := guildMember.User.ID; userId != ownerId {
-			nickName := guildMember.Nick
-			if nickName == "" {
-				nickName = guildMember.User.Username
-			}
+		counterError += applyPrefix(s, guildMember, guildId, ownerId, defaultRoleId, ignoredRoleIds, roleIdToPrefix, prefixes)
+	}
+	return counterError
+}
 
-			newNickName := transformName(nickName, guildMember.Roles, roleIdToPrefix, prefixes)
-			if newNickName != nickName {
-				if err := s.GuildMemberNickname(guildId, guildMember.User.ID, newNickName); err != nil {
-					log.Println("An error occurred (2) :", err)
+func applyPrefix(s *discordgo.Session, guildMember *discordgo.Member, guildId string, ownerId string, defaultRoleId string, ignoredRoleIds map[string]empty, roleIdToPrefix map[string]string, prefixes []string) int {
+	counterError := 0
+	userId := guildMember.User.ID
+	roleIds := guildMember.Roles
+	if userId != ownerId && !roleIdInSet(roleIds, ignoredRoleIds) {
+		nickName := guildMember.Nick
+		if nickName == "" {
+			nickName = guildMember.User.Username
+		}
+
+		newNickName, hasDefault, hasPrefix := transformName(nickName, defaultRoleId, roleIds, roleIdToPrefix, prefixes)
+		if hasDefault {
+			if hasPrefix {
+				if err := s.GuildMemberRoleRemove(guildId, userId, defaultRoleId); err != nil {
+					log.Println("An error occurred (4) :", err)
 					counterError++
 				}
+			}
+		} else if !hasPrefix {
+			if err := s.GuildMemberRoleAdd(guildId, userId, defaultRoleId); err != nil {
+				log.Println("An error occurred (5) :", err)
+				counterError++
+			}
+		}
+		if newNickName != nickName {
+			if err := s.GuildMemberNickname(guildId, userId, newNickName); err != nil {
+				log.Println("An error occurred (6) :", err)
+				counterError++
 			}
 		}
 	}
