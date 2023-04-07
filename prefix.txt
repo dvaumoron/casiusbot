@@ -3,3 +3,6 @@ Druide=🐻
 Nécromancien=💀
 Sorcier=🧙
 Voleur=🏹
+Vioc ancestral=👴
+#Flambeur=🔥
+#Ami ancestral=👴
