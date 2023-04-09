@@ -4,5 +4,7 @@ Nécromancien=💀
 Sorcier=🧙
 Voleur=🏹
 Vioc ancestral=👴🏽
+N°100=💯
+Jambe de Wirt=🦵🏼
 #Flambeur=🔥
 #Ami ancestral=👴🏽
