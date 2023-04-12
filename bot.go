@@ -33,6 +33,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
+	"github.com/mmcdole/gofeed"
 )
 
 type empty struct{}
@@ -170,7 +171,7 @@ func main() {
 						returnMsg = buildPartialErrorString(errPartialCmdMsg, counterError)
 					}
 				} else {
-					log.Println("An error occurred (1) :", err)
+					log.Println("Members retrieving failed :", err)
 					returnMsg = errGlobalCmdMsg
 				}
 
@@ -205,7 +206,7 @@ func main() {
 							newNickName := cleanPrefix(nickName, prefixes)
 							if newNickName != nickName {
 								if err = s.GuildMemberNickname(i.GuildID, guildMember.User.ID, newNickName); err != nil {
-									log.Println("An error occurred (2) :", err)
+									log.Println("Nickname change failed :", err)
 									counterError++
 								}
 							}
@@ -216,7 +217,7 @@ func main() {
 						returnMsg = buildPartialErrorString(errPartialCmdMsg, counterError)
 					}
 				} else {
-					log.Println("An error occurred (3) :", err)
+					log.Println("Members retrieving failed (2) :", err)
 					returnMsg = errGlobalCmdMsg
 				}
 
@@ -246,6 +247,7 @@ func main() {
 	}
 
 	bgChangeGameStatus(session)
+	bgReadMultipleRSS(session, nil, "", time.Now(), 0) // TODO retrieve init param
 	bgServeHttp()
 
 	stop := make(chan os.Signal, 1)
@@ -344,19 +346,19 @@ func applyPrefix(s *discordgo.Session, guildMember *discordgo.Member, guildId st
 		if hasDefault {
 			if hasPrefix {
 				if err := s.GuildMemberRoleRemove(guildId, userId, defaultRoleId); err != nil {
-					log.Println("An error occurred (4) :", err)
+					log.Println("Role removing failed :", err)
 					counterError++
 				}
 			}
 		} else if !hasPrefix {
 			if err := s.GuildMemberRoleAdd(guildId, userId, defaultRoleId); err != nil {
-				log.Println("An error occurred (5) :", err)
+				log.Println("Role addition failed :", err)
 				counterError++
 			}
 		}
 		if newNickName != nickName {
 			if err := s.GuildMemberNickname(guildId, userId, newNickName); err != nil {
-				log.Println("An error occurred (6) :", err)
+				log.Println("Nickname change failed (2) :", err)
 				counterError++
 			}
 		}
@@ -414,26 +416,74 @@ func initSetId(names []string, nameToId map[string]string) map[string]empty {
 }
 
 func bgChangeGameStatus(session *discordgo.Session) {
-	ticker := time.Tick(10 * time.Second)
 	games := strings.Split(os.Getenv("GAME_LIST"), ",")
 	for index, game := range games {
 		games[index] = strings.TrimSpace(game)
 	}
+	go updateGameStatus(session, games)
+}
+
+func updateGameStatus(session *discordgo.Session, games []string) {
 	gamesLen := len(games)
-	go func() {
-		for range ticker {
-			session.UpdateGameStatus(0, games[rand.Intn(gamesLen)])
+	for range time.Tick(10 * time.Second) {
+		session.UpdateGameStatus(0, games[rand.Intn(gamesLen)])
+	}
+}
+
+func bgReadMultipleRSS(session *discordgo.Session, feedURLs []string, channelId string, oldTime time.Time, interval time.Duration) {
+	subTickers := make([]chan time.Time, 0, len(feedURLs))
+	for range feedURLs {
+		subTickers = append(subTickers, make(chan time.Time))
+	}
+
+	go dispatchTick(oldTime, interval, subTickers)
+
+	for index, feedURL := range feedURLs {
+		go readRSS(session, feedURL, channelId, subTickers[index])
+	}
+}
+
+func dispatchTick(oldTime time.Time, interval time.Duration, subTickers []chan time.Time) {
+	for newTime := range time.Tick(interval * time.Second) {
+		for _, subTicker := range subTickers {
+			subTicker <- oldTime
 		}
-	}()
+		oldTime = newTime
+	}
+}
+
+func readRSS(session *discordgo.Session, feedURL string, channelId string, subTicker <-chan time.Time) {
+	fp := gofeed.NewParser()
+	for oldTime := range subTicker {
+		feed, err := fp.ParseURL(feedURL)
+		if err == nil {
+			for _, item := range feed.Items {
+				published := item.PublishedParsed
+				if !published.IsZero() && published.After(oldTime) {
+					message := fmt.Sprint(item.Title, ":", item.Link)
+					_, err = session.ChannelMessageSend(channelId, message)
+					if err != nil {
+						log.Println("Message sending failed :", err)
+					}
+				}
+			}
+		} else {
+			log.Println("RSS parsing failed :", err)
+		}
+	}
 }
 
 func bgServeHttp() {
-	responseData := []byte("Hello World !")
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write(responseData)
-	})
+	http.HandleFunc("/", hello)
+	go listenAndServe()
+}
 
-	go func() {
-		http.ListenAndServe(":8080", nil)
-	}()
+var helloData = []byte("Hello World !")
+
+func hello(w http.ResponseWriter, r *http.Request) {
+	w.Write(helloData)
+}
+
+func listenAndServe() {
+	http.ListenAndServe(":8080", nil)
 }
