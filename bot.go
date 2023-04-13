@@ -93,9 +93,14 @@ func main() {
 	}
 	ownerId := guild.OwnerID
 	guildRoles := guild.Roles
-	guildChannels := guild.Channels
 	// emptying data no longer useful for GC cleaning
 	guild = nil
+
+	guildChannels, err := session.GuildChannels(guildId)
+	if err != nil {
+		log.Println("Cannot retrieve the guild channels :", err)
+		return
+	}
 
 	targetChannelId := ""
 	for _, channel := range guildChannels {
@@ -488,36 +493,46 @@ func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, startTime
 	for range feedURLs {
 		subTickers = append(subTickers, make(chan time.Time, 1))
 	}
-	go dispatchTick(startTime, interval, subTickers)
+	go startDispatchTick(startTime, interval, subTickers)
 
 	for index, feedURL := range feedURLs {
-		go readRSS(messageSender, feedURL, subTickers[index])
+		go startReadRSS(messageSender, feedURL, subTickers[index])
 	}
 }
 
-func dispatchTick(oldTime time.Time, interval time.Duration, subTickers []chan time.Time) {
+func startDispatchTick(oldTime time.Time, interval time.Duration, subTickers []chan time.Time) {
+	dispatchTick(oldTime, subTickers)
+	oldTime = time.Now()
 	for newTime := range time.Tick(interval) {
-		for _, subTicker := range subTickers {
-			subTicker <- oldTime
-		}
+		dispatchTick(oldTime, subTickers)
 		oldTime = newTime
 	}
 }
 
-func readRSS(messageSender chan<- string, feedURL string, subTicker <-chan time.Time) {
+func dispatchTick(oldTime time.Time, subTickers []chan time.Time) {
+	for _, subTicker := range subTickers {
+		subTicker <- oldTime
+	}
+}
+
+func startReadRSS(messageSender chan<- string, feedURL string, subTicker <-chan time.Time) {
 	fp := gofeed.NewParser()
-	for oldTime := range subTicker {
-		feed, err := fp.ParseURL(feedURL)
-		if err == nil {
-			for _, item := range feed.Items {
-				published := item.PublishedParsed
-				if !published.IsZero() && published.After(oldTime) {
-					messageSender <- item.Link
-				}
+	for after := range subTicker {
+		readRSS(messageSender, fp, feedURL, after)
+	}
+}
+
+func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, after time.Time) {
+	feed, err := fp.ParseURL(feedURL)
+	if err == nil {
+		for _, item := range feed.Items {
+			published := item.PublishedParsed
+			if !published.IsZero() && published.After(after) {
+				messageSender <- item.Link
 			}
-		} else {
-			log.Println("RSS parsing failed :", err)
 		}
+	} else {
+		log.Println("RSS parsing failed :", err)
 	}
 }
 
