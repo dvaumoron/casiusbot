@@ -19,7 +19,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
@@ -32,33 +31,37 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/dvaumoron/casiusbot/cache"
 	"github.com/joho/godotenv"
 	"github.com/mmcdole/gofeed"
 )
 
-type empty struct{}
+type empty = struct{}
 
 func main() {
 	if godotenv.Overload() == nil {
-		fmt.Println("Loaded .env file")
+		log.Println("Loaded .env file")
 	}
-
-	session, err := discordgo.New("Bot " + os.Getenv("BOT_TOKEN"))
-	if err != nil {
-		fmt.Println("Cannot create the bot :", err)
-	}
-
-	cmdRoles := strings.Split(os.Getenv("ROLES_CMD"), ",")
-	defaultRole := os.Getenv("DEFAULT_ROLE")
-	ignoredRoles := strings.Split(os.Getenv("IGNORED_ROLES"), ",")
-	specialRoles := strings.Split(os.Getenv("SPECIAL_ROLES"), ",")
 
 	okCmdMsg := os.Getenv("MESSAGE_CMD_OK")
 	errPartialCmdMsg := os.Getenv("MESSAGE_CMD_PARTIAL_ERROR")
 	errGlobalCmdMsg := os.Getenv("MESSAGE_CMD_GLOBAL_ERROR")
 	errUnauthorizedCmdMsg := os.Getenv("MESSAGE_CMD_UNAUTHORIZED")
 
-	session.Identify.Intents |= discordgo.IntentGuildMembers
+	guildId := os.Getenv("GUILD_ID")
+	cmdRoles := strings.Split(os.Getenv("ROLES_CMD"), ",")
+	defaultRole := os.Getenv("DEFAULT_ROLE")
+	ignoredRoles := strings.Split(os.Getenv("IGNORED_ROLES"), ",")
+	specialRoles := strings.Split(os.Getenv("SPECIAL_ROLES"), ",")
+	targetChannelName := os.Getenv("TARGET_CHANNEL")
+	feedURLs := getAndTrimSlice("FEED_URLS")
+	rssStartInterval := getAndParseDurationSec("RSS_START_INTERVAL")
+	rssReadInterval := getAndParseDurationSec("RSS_READ_INTERVAL")
+
+	roleNameToPrefix, prefixes, err := readPrefixConfig()
+	if err != nil {
+		log.Fatalln("Cannot open the configuration file :", err)
+	}
 
 	applyCmd := &discordgo.ApplicationCommand{
 		Name:        "apply-prefix",
@@ -69,15 +72,13 @@ func main() {
 		Description: "Clean the prefix for all User",
 	}
 
-	filePath := os.Getenv("PREFIX_FILE_PATH")
-	roleNameToPrefix, prefixes, err := readPrefixConfig(filePath)
-	if err != nil {
-		log.Fatalln("Cannot open the configuration file :", err)
-	}
-
 	errUnauthorizedCmdMsg = buildNiceMsg(errUnauthorizedCmdMsg, roleNameToPrefix)
 
-	guildId := os.Getenv("GUILD_ID")
+	session, err := discordgo.New("Bot " + os.Getenv("BOT_TOKEN"))
+	if err != nil {
+		log.Fatalln("Cannot create the bot :", err)
+	}
+	session.Identify.Intents |= discordgo.IntentGuildMembers
 
 	err = session.Open()
 	if err != nil {
@@ -92,8 +93,24 @@ func main() {
 	}
 	ownerId := guild.OwnerID
 	guildRoles := guild.Roles
+	guildChannels := guild.Channels
 	// emptying data no longer useful for GC cleaning
 	guild = nil
+
+	targetChannelId := ""
+	for _, channel := range guildChannels {
+		if channel.Name == targetChannelName {
+			targetChannelId = channel.ID
+			break
+		}
+	}
+	if targetChannelId == "" {
+		log.Println("Cannot retrieve the guild channel :", targetChannelName)
+		return
+	}
+	// emptying data no longer useful for GC cleaning
+	guildChannels = nil
+	targetChannelName = ""
 
 	roleIdToPrefix := map[string]string{}
 	roleNameToId := map[string]string{}
@@ -109,10 +126,7 @@ func main() {
 	roleNameToPrefix = nil
 	guildRoles = nil
 
-	cmdRoleIds := map[string]empty{}
-	for _, cmdRole := range cmdRoles {
-		cmdRoleIds[roleNameToId[strings.TrimSpace(cmdRole)]] = empty{}
-	}
+	cmdRoleIds := initSetId(cmdRoles, roleNameToId)
 	// emptying data no longer useful for GC cleaning
 	cmdRoles = nil
 
@@ -246,8 +260,11 @@ func main() {
 		log.Println("Cannot create clean command :", err)
 	}
 
-	bgChangeGameStatus(session)
-	bgReadMultipleRSS(session, nil, "", time.Now(), 0) // TODO retrieve init param
+	messageChan := make(chan string)
+	go sendMessage(session, targetChannelId, messageChan)
+
+	go updateGameStatus(session, getAndTrimSlice("GAME_LIST"))
+	bgReadMultipleRSS(messageChan, feedURLs, time.Now().Add(-rssStartInterval), rssReadInterval)
 	bgServeHttp()
 
 	stop := make(chan os.Signal, 1)
@@ -263,8 +280,8 @@ func main() {
 	}
 }
 
-func readPrefixConfig(path string) (map[string]string, []string, error) {
-	file, err := os.Open(path)
+func readPrefixConfig() (map[string]string, []string, error) {
+	file, err := os.Open(os.Getenv("PREFIX_FILE_PATH"))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -415,12 +432,48 @@ func initSetId(names []string, nameToId map[string]string) map[string]empty {
 	return setIds
 }
 
-func bgChangeGameStatus(session *discordgo.Session) {
-	games := strings.Split(os.Getenv("GAME_LIST"), ",")
-	for index, game := range games {
-		games[index] = strings.TrimSpace(game)
+func getAndTrimSlice(valuesName string) []string {
+	values := strings.Split(os.Getenv(valuesName), ",")
+	for index, value := range values {
+		values[index] = strings.TrimSpace(value)
 	}
-	go updateGameStatus(session, games)
+	return values
+}
+
+func getAndParseDurationSec(valueName string) time.Duration {
+	valueSec, err := strconv.ParseInt(os.Getenv(valueName), 10, 64)
+	if err != nil {
+		log.Fatalln("Configuration", valueName, "parsing failed :", err)
+	}
+	return time.Duration(valueSec) * time.Second
+}
+
+func sendMessage(session *discordgo.Session, channelId string, messageReceiver <-chan string) {
+	botUserId := session.State.User.ID
+	botMessageCache := cache.Make(100)
+	oldMessages, err := session.ChannelMessages(channelId, 100, "", "", "")
+	if err == nil {
+		botOldMessages := make([]string, 0, 100)
+		for _, message := range oldMessages {
+			if message.Author.ID == botUserId {
+				botOldMessages = append(botOldMessages, message.Content)
+			}
+		}
+		botMessageCache.Init(botOldMessages)
+	} else {
+		log.Println("Message retrieving failed :", err)
+	}
+
+	for message := range messageReceiver {
+		if !botMessageCache.Contains(message) {
+			_, err = session.ChannelMessageSend(channelId, message)
+			if err == nil {
+				botMessageCache.Add(message)
+			} else {
+				log.Println("Message sending failed :", err)
+			}
+		}
+	}
 }
 
 func updateGameStatus(session *discordgo.Session, games []string) {
@@ -430,21 +483,20 @@ func updateGameStatus(session *discordgo.Session, games []string) {
 	}
 }
 
-func bgReadMultipleRSS(session *discordgo.Session, feedURLs []string, channelId string, oldTime time.Time, interval time.Duration) {
+func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, startTime time.Time, interval time.Duration) {
 	subTickers := make([]chan time.Time, 0, len(feedURLs))
 	for range feedURLs {
-		subTickers = append(subTickers, make(chan time.Time))
+		subTickers = append(subTickers, make(chan time.Time, 1))
 	}
-
-	go dispatchTick(oldTime, interval, subTickers)
+	go dispatchTick(startTime, interval, subTickers)
 
 	for index, feedURL := range feedURLs {
-		go readRSS(session, feedURL, channelId, subTickers[index])
+		go readRSS(messageSender, feedURL, subTickers[index])
 	}
 }
 
 func dispatchTick(oldTime time.Time, interval time.Duration, subTickers []chan time.Time) {
-	for newTime := range time.Tick(interval * time.Second) {
+	for newTime := range time.Tick(interval) {
 		for _, subTicker := range subTickers {
 			subTicker <- oldTime
 		}
@@ -452,7 +504,7 @@ func dispatchTick(oldTime time.Time, interval time.Duration, subTickers []chan t
 	}
 }
 
-func readRSS(session *discordgo.Session, feedURL string, channelId string, subTicker <-chan time.Time) {
+func readRSS(messageSender chan<- string, feedURL string, subTicker <-chan time.Time) {
 	fp := gofeed.NewParser()
 	for oldTime := range subTicker {
 		feed, err := fp.ParseURL(feedURL)
@@ -460,11 +512,7 @@ func readRSS(session *discordgo.Session, feedURL string, channelId string, subTi
 			for _, item := range feed.Items {
 				published := item.PublishedParsed
 				if !published.IsZero() && published.After(oldTime) {
-					message := fmt.Sprint(item.Title, ":", item.Link)
-					_, err = session.ChannelMessageSend(channelId, message)
-					if err != nil {
-						log.Println("Message sending failed :", err)
-					}
+					messageSender <- item.Link
 				}
 			}
 		} else {
@@ -475,7 +523,7 @@ func readRSS(session *discordgo.Session, feedURL string, channelId string, subTi
 
 func bgServeHttp() {
 	http.HandleFunc("/", hello)
-	go listenAndServe()
+	go startHttp()
 }
 
 var helloData = []byte("Hello World !")
@@ -484,6 +532,6 @@ func hello(w http.ResponseWriter, r *http.Request) {
 	w.Write(helloData)
 }
 
-func listenAndServe() {
+func startHttp() {
 	http.ListenAndServe(":8080", nil)
 }
