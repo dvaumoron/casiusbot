@@ -36,6 +36,9 @@ import (
 	"github.com/mmcdole/gofeed"
 )
 
+const guildChannelNotFoundMsg = "Cannot retrieve the guild channel :"
+const sendingFailedMsg = "Message sending failed :"
+
 type empty = struct{}
 
 func main() {
@@ -53,10 +56,17 @@ func main() {
 	defaultRole := os.Getenv("DEFAULT_ROLE")
 	ignoredRoles := strings.Split(os.Getenv("IGNORED_ROLES"), ",")
 	specialRoles := strings.Split(os.Getenv("SPECIAL_ROLES"), ",")
-	targetChannelName := os.Getenv("TARGET_CHANNEL")
+	targetNewsChannelName := os.Getenv("TARGET_NEWS_CHANNEL")
 	feedURLs := getAndTrimSlice("FEED_URLS")
 	rssStartInterval := getAndParseDurationSec("RSS_START_INTERVAL")
 	rssReadInterval := getAndParseDurationSec("RSS_READ_INTERVAL")
+	targetReminderChannelName := os.Getenv("TARGET_REMINDER_CHANNEL")
+	reminderDelays := getAndParseDelayMins("REMINDER_BEFORES")
+	var reminderBuilder strings.Builder
+	reminderBuilder.WriteString(os.Getenv("REMINDER_TEXT"))
+	reminderBuilder.WriteString("\nhttps://discord.com/events/")
+	reminderBuilder.WriteString(guildId)
+	reminderText := reminderBuilder.String()
 
 	roleNameToPrefix, prefixes, err := readPrefixConfig()
 	if err != nil {
@@ -102,20 +112,28 @@ func main() {
 		return
 	}
 
-	targetChannelId := ""
+	targetNewsChannelId := ""
+	targetReminderChannelId := ""
 	for _, channel := range guildChannels {
-		if channel.Name == targetChannelName {
-			targetChannelId = channel.ID
-			break
+		switch channel.Name {
+		case targetNewsChannelName:
+			targetNewsChannelId = channel.ID
+		case targetReminderChannelName:
+			targetReminderChannelId = channel.ID
 		}
 	}
-	if targetChannelId == "" {
-		log.Println("Cannot retrieve the guild channel :", targetChannelName)
+	if targetNewsChannelId == "" {
+		log.Println(guildChannelNotFoundMsg, targetNewsChannelName)
+		return
+	}
+	if targetReminderChannelId == "" {
+		log.Println(guildChannelNotFoundMsg, targetReminderChannelName)
 		return
 	}
 	// emptying data no longer useful for GC cleaning
 	guildChannels = nil
-	targetChannelName = ""
+	targetNewsChannelName = ""
+	targetReminderChannelName = ""
 
 	roleIdToPrefix := map[string]string{}
 	roleNameToId := map[string]string{}
@@ -266,10 +284,11 @@ func main() {
 	}
 
 	messageChan := make(chan string)
-	go sendMessage(session, targetChannelId, messageChan)
+	go sendMessage(session, targetNewsChannelId, messageChan)
 
 	go updateGameStatus(session, getAndTrimSlice("GAME_LIST"))
 	bgReadMultipleRSS(messageChan, feedURLs, time.Now().Add(-rssStartInterval), rssReadInterval)
+	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderText, rssReadInterval)
 	bgServeHttp()
 
 	stop := make(chan os.Signal, 1)
@@ -453,6 +472,23 @@ func getAndParseDurationSec(valueName string) time.Duration {
 	return time.Duration(valueSec) * time.Second
 }
 
+func getAndParseDelayMins(valuesName string) []time.Duration {
+	values := strings.Split(os.Getenv(valuesName), ",")
+	delays := make([]time.Duration, 0, len(values))
+	for _, value := range values {
+		valueMin, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			log.Fatalln("Configuration", valuesName, "parsing failed :", err)
+		}
+		delay := time.Duration(valueMin) * time.Minute
+		if delay > 0 {
+			delay = -delay
+		}
+		delays = append(delays, delay)
+	}
+	return delays
+}
+
 func sendMessage(session *discordgo.Session, channelId string, messageReceiver <-chan string) {
 	botUserId := session.State.User.ID
 	botMessageCache := cache.Make(100)
@@ -533,6 +569,33 @@ func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, aft
 		}
 	} else {
 		log.Println("RSS parsing failed :", err)
+	}
+}
+
+func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Duration, channelId string, reminderText string, interval time.Duration) {
+	minusInteval := -interval
+	for current := range time.Tick(interval) {
+		previous := current.Add(minusInteval)
+		events, err := session.GuildScheduledEvents(guildId, false)
+		if err != nil {
+			log.Println("Cannot retrieve guild events :", err)
+			continue
+		}
+
+		for _, event := range events {
+			for _, delay := range delays {
+				// delay  is already negative
+				reminderTime := event.ScheduledStartTime.Add(delay)
+				if reminderTime.After(previous) && reminderTime.Before(current) {
+					message := reminderText + event.ID
+					if _, err = session.ChannelMessageSend(channelId, message); err != nil {
+						log.Println(sendingFailedMsg, err)
+					}
+					// don't test other delay
+					break
+				}
+			}
+		}
 	}
 }
 
