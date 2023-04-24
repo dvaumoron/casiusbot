@@ -66,6 +66,7 @@ func main() {
 	reminderBuilder.WriteString(os.Getenv("REMINDER_TEXT"))
 	reminderBuilder.WriteString("\nhttps://discord.com/events/")
 	reminderBuilder.WriteString(guildId)
+	reminderBuilder.WriteByte('/')
 	reminderText := reminderBuilder.String()
 
 	roleNameToPrefix, prefixes, err := readPrefixConfig()
