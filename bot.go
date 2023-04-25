@@ -496,7 +496,8 @@ func sendMessage(session *discordgo.Session, channelId string, messageReceiver <
 	if err == nil {
 		botOldMessages := make([]string, 0, 100)
 		for _, message := range oldMessages {
-			if message.Author.ID == botUserId {
+			author := message.Author
+			if author != nil && author.ID == botUserId {
 				botOldMessages = append(botOldMessages, message.Content)
 			}
 		}
@@ -563,7 +564,7 @@ func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, aft
 	if err == nil {
 		for _, item := range feed.Items {
 			published := item.PublishedParsed
-			if !published.IsZero() && published.After(after) {
+			if !(published == nil || published.IsZero()) && published.After(after) {
 				messageSender <- item.Link
 			}
 		}
