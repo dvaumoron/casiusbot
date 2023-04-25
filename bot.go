@@ -36,9 +36,6 @@ import (
 	"github.com/mmcdole/gofeed"
 )
 
-const guildChannelNotFoundMsg = "Cannot retrieve the guild channel :"
-const sendingFailedMsg = "Message sending failed :"
-
 type empty = struct{}
 
 func main() {
@@ -116,19 +113,21 @@ func main() {
 	targetNewsChannelId := ""
 	targetReminderChannelId := ""
 	for _, channel := range guildChannels {
-		switch channel.Name {
-		case targetNewsChannelName:
+		channelName := channel.Name
+		if channelName == targetNewsChannelName {
 			targetNewsChannelId = channel.ID
-		case targetReminderChannelName:
+		}
+		// not in else statement (could be the same channel)
+		if channelName == targetReminderChannelName {
 			targetReminderChannelId = channel.ID
 		}
 	}
 	if targetNewsChannelId == "" {
-		log.Println(guildChannelNotFoundMsg, targetNewsChannelName)
+		log.Println("Cannot retrieve the guild channel :", targetNewsChannelName)
 		return
 	}
 	if targetReminderChannelId == "" {
-		log.Println(guildChannelNotFoundMsg, targetReminderChannelName)
+		log.Println("Cannot retrieve the guild channel (2) :", targetReminderChannelName)
 		return
 	}
 	// emptying data no longer useful for GC cleaning
@@ -590,7 +589,7 @@ func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Dur
 				if reminderTime.After(previous) && reminderTime.Before(current) {
 					message := reminderText + event.ID
 					if _, err = session.ChannelMessageSend(channelId, message); err != nil {
-						log.Println(sendingFailedMsg, err)
+						log.Println("Message sending failed (2) :", err)
 					}
 					// don't test other delay
 					break
