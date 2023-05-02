@@ -21,7 +21,6 @@ import (
 	"bufio"
 	"log"
 	"math/rand"
-	"net/http"
 	"os"
 	"os/signal"
 	"sort"
@@ -289,7 +288,6 @@ func main() {
 	go updateGameStatus(session, getAndTrimSlice("GAME_LIST"))
 	bgReadMultipleRSS(messageChan, feedURLs, time.Now().Add(-rssStartInterval), rssReadInterval)
 	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderText, rssReadInterval)
-	bgServeHttp()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
@@ -598,19 +596,4 @@ func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Dur
 			}
 		}
 	}
-}
-
-func bgServeHttp() {
-	http.HandleFunc("/", hello)
-	go startHttp()
-}
-
-var helloData = []byte("Hello World !")
-
-func hello(w http.ResponseWriter, r *http.Request) {
-	w.Write(helloData)
-}
-
-func startHttp() {
-	http.ListenAndServe(":8080", nil)
 }
