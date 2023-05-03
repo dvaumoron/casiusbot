@@ -320,6 +320,10 @@ func readPrefixConfig(filePathName string) (map[string]string, []string, error) 
 			prefixes = append(prefixes, prefix)
 		}
 	}
+
+	if err = scanner.Err(); err != nil {
+		return nil, nil, err
+	}
 	return nameToPrefix, prefixes, nil
 }
 
