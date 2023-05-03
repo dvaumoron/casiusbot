@@ -41,10 +41,15 @@ func main() {
 		log.Println("Loaded .env file")
 	}
 
+	roleNameToPrefix, prefixes, err := readPrefixConfig("PREFIX_FILE_PATH")
+	if err != nil {
+		log.Fatalln("Cannot open the configuration file :", err)
+	}
+
 	okCmdMsg := os.Getenv("MESSAGE_CMD_OK")
 	errPartialCmdMsg := os.Getenv("MESSAGE_CMD_PARTIAL_ERROR")
 	errGlobalCmdMsg := os.Getenv("MESSAGE_CMD_GLOBAL_ERROR")
-	errUnauthorizedCmdMsg := os.Getenv("MESSAGE_CMD_UNAUTHORIZED")
+	errUnauthorizedCmdMsg := buildMsgWithPrefixList("MESSAGE_CMD_UNAUTHORIZED", roleNameToPrefix)
 
 	guildId := os.Getenv("GUILD_ID")
 	cmdRoles := strings.Split(os.Getenv("ROLES_CMD"), ",")
@@ -56,12 +61,7 @@ func main() {
 	checkInterval := getAndParseDurationSec("CHECK_INTERVAL")
 	targetReminderChannelName := os.Getenv("TARGET_REMINDER_CHANNEL")
 	reminderDelays := getAndParseDelayMins("REMINDER_BEFORES")
-	reminderPrefix := getReminderPrefix(guildId)
-
-	roleNameToPrefix, prefixes, err := readPrefixConfig()
-	if err != nil {
-		log.Fatalln("Cannot open the configuration file :", err)
-	}
+	reminderPrefix := buildReminderPrefix("REMINDER_TEXT", guildId)
 
 	applyCmd := &discordgo.ApplicationCommand{
 		Name:        "apply-prefix",
@@ -71,8 +71,6 @@ func main() {
 		Name:        "clean-prefix",
 		Description: "Clean the prefix for all User",
 	}
-
-	errUnauthorizedCmdMsg = buildNiceMsg(errUnauthorizedCmdMsg, roleNameToPrefix)
 
 	session, err := discordgo.New("Bot " + os.Getenv("BOT_TOKEN"))
 	if err != nil {
@@ -295,8 +293,8 @@ func main() {
 	}
 }
 
-func readPrefixConfig() (map[string]string, []string, error) {
-	file, err := os.Open(os.Getenv("PREFIX_FILE_PATH"))
+func readPrefixConfig(filePathName string) (map[string]string, []string, error) {
+	file, err := os.Open(os.Getenv(filePathName))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -422,9 +420,9 @@ func (nps namePrefixSortByName) Swap(i, j int) {
 	nps[j] = tmp
 }
 
-func buildNiceMsg(baseMsg string, roleNameToPrefix map[string]string) string {
+func buildMsgWithPrefixList(baseMsgName string, roleNameToPrefix map[string]string) string {
 	var buffer strings.Builder
-	buffer.WriteString(baseMsg)
+	buffer.WriteString(os.Getenv(baseMsgName))
 	namePrefixes := make([][2]string, 0, len(roleNameToPrefix))
 	for name, prefix := range roleNameToPrefix {
 		namePrefixes = append(namePrefixes, [2]string{name, prefix})
@@ -480,9 +478,9 @@ func getAndParseDelayMins(valuesName string) []time.Duration {
 	return delays
 }
 
-func getReminderPrefix(guildId string) string {
+func buildReminderPrefix(reminderName string, guildId string) string {
 	var reminderBuilder strings.Builder
-	reminderBuilder.WriteString(os.Getenv("REMINDER_TEXT"))
+	reminderBuilder.WriteString(os.Getenv(reminderName))
 	reminderBuilder.WriteString("\nhttps://discord.com/events/")
 	reminderBuilder.WriteString(guildId)
 	reminderBuilder.WriteByte('/')
