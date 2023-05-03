@@ -493,7 +493,6 @@ func sendMessage(session *discordgo.Session, channelId string, messageReceiver <
 		if err != nil {
 			log.Println("Message sending failed :", err)
 		}
-
 	}
 }
 
