@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/dvaumoron/casiusbot/cache"
 	"github.com/joho/godotenv"
 	"github.com/mmcdole/gofeed"
 )
@@ -177,10 +176,10 @@ func main() {
 	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
 		if userId := u.User.ID; userId != ownerId {
 			mutex.RLock()
-			cmdworking2 := cmdworking
+			cmdworkingCopy := cmdworking
 			mutex.RUnlock()
 
-			if !cmdworking2 {
+			if !cmdworkingCopy {
 				applyPrefix(s, u.Member, u.GuildID, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, roleIdToPrefix, prefixes)
 			}
 		}
@@ -492,31 +491,12 @@ func getReminderPrefix(guildId string) string {
 }
 
 func sendMessage(session *discordgo.Session, channelId string, messageReceiver <-chan string) {
-	botUserId := session.State.User.ID
-	botMessageCache := cache.Make(100)
-	oldMessages, err := session.ChannelMessages(channelId, 100, "", "", "")
-	if err == nil {
-		botOldMessages := make([]string, 0, 100)
-		for _, message := range oldMessages {
-			author := message.Author
-			if author != nil && author.ID == botUserId {
-				botOldMessages = append(botOldMessages, message.Content)
-			}
-		}
-		botMessageCache.Init(botOldMessages)
-	} else {
-		log.Println("Message retrieving failed :", err)
-	}
-
 	for message := range messageReceiver {
-		if !botMessageCache.Contains(message) {
-			_, err = session.ChannelMessageSend(channelId, message)
-			if err == nil {
-				botMessageCache.Add(message)
-			} else {
-				log.Println("Message sending failed :", err)
-			}
+		_, err := session.ChannelMessageSend(channelId, message)
+		if err != nil {
+			log.Println("Message sending failed :", err)
 		}
+
 	}
 }
 
