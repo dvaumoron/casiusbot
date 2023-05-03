@@ -58,12 +58,7 @@ func main() {
 	rssReadInterval := getAndParseDurationSec("RSS_READ_INTERVAL")
 	targetReminderChannelName := os.Getenv("TARGET_REMINDER_CHANNEL")
 	reminderDelays := getAndParseDelayMins("REMINDER_BEFORES")
-	var reminderBuilder strings.Builder
-	reminderBuilder.WriteString(os.Getenv("REMINDER_TEXT"))
-	reminderBuilder.WriteString("\nhttps://discord.com/events/")
-	reminderBuilder.WriteString(guildId)
-	reminderBuilder.WriteByte('/')
-	reminderText := reminderBuilder.String()
+	reminderPrefix := getReminderPrefix(guildId)
 
 	roleNameToPrefix, prefixes, err := readPrefixConfig()
 	if err != nil {
@@ -287,7 +282,7 @@ func main() {
 
 	go updateGameStatus(session, getAndTrimSlice("GAME_LIST"))
 	bgReadMultipleRSS(messageChan, feedURLs, time.Now().Add(-rssStartInterval), rssReadInterval)
-	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderText, rssReadInterval)
+	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, rssReadInterval)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
@@ -487,6 +482,15 @@ func getAndParseDelayMins(valuesName string) []time.Duration {
 	return delays
 }
 
+func getReminderPrefix(guildId string) string {
+	var reminderBuilder strings.Builder
+	reminderBuilder.WriteString(os.Getenv("REMINDER_TEXT"))
+	reminderBuilder.WriteString("\nhttps://discord.com/events/")
+	reminderBuilder.WriteString(guildId)
+	reminderBuilder.WriteByte('/')
+	return reminderBuilder.String()
+}
+
 func sendMessage(session *discordgo.Session, channelId string, messageReceiver <-chan string) {
 	botUserId := session.State.User.ID
 	botMessageCache := cache.Make(100)
@@ -571,7 +575,7 @@ func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, aft
 	}
 }
 
-func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Duration, channelId string, reminderText string, interval time.Duration) {
+func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Duration, channelId string, reminderPrefix string, interval time.Duration) {
 	minusInteval := -interval
 	for current := range time.Tick(interval) {
 		previous := current.Add(minusInteval)
@@ -586,7 +590,7 @@ func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Dur
 				// delay  is already negative
 				reminderTime := event.ScheduledStartTime.Add(delay)
 				if reminderTime.After(previous) && reminderTime.Before(current) {
-					message := reminderText + event.ID
+					message := reminderPrefix + event.ID
 					if _, err = session.ChannelMessageSend(channelId, message); err != nil {
 						log.Println("Message sending failed (2) :", err)
 					}
