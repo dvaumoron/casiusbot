@@ -56,6 +56,8 @@ func main() {
 	defaultRole := os.Getenv("DEFAULT_ROLE")
 	ignoredRoles := strings.Split(os.Getenv("IGNORED_ROLES"), ",")
 	specialRoles := strings.Split(os.Getenv("SPECIAL_ROLES"), ",")
+	gameList := getAndTrimSlice("GAME_LIST")
+	updateGameInterval := 30 * time.Second
 	targetNewsChannelName := os.Getenv("TARGET_NEWS_CHANNEL")
 	feedURLs := getAndTrimSlice("FEED_URLS")
 	checkInterval := getAndParseDurationSec("CHECK_INTERVAL")
@@ -276,7 +278,7 @@ func main() {
 	messageChan := make(chan string)
 	go sendMessage(session, targetNewsChannelId, messageChan)
 
-	go updateGameStatus(session, getAndTrimSlice("GAME_LIST"))
+	go updateGameStatus(session, gameList, updateGameInterval)
 	bgReadMultipleRSS(messageChan, feedURLs, checkInterval)
 	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, checkInterval)
 
@@ -496,9 +498,9 @@ func sendMessage(session *discordgo.Session, channelId string, messageReceiver <
 	}
 }
 
-func updateGameStatus(session *discordgo.Session, games []string) {
+func updateGameStatus(session *discordgo.Session, games []string, interval time.Duration) {
 	gamesLen := len(games)
-	for range time.Tick(10 * time.Second) {
+	for range time.Tick(interval) {
 		session.UpdateGameStatus(0, games[rand.Intn(gamesLen)])
 	}
 }
