@@ -53,8 +53,7 @@ func main() {
 	specialRoles := strings.Split(os.Getenv("SPECIAL_ROLES"), ",")
 	targetNewsChannelName := os.Getenv("TARGET_NEWS_CHANNEL")
 	feedURLs := getAndTrimSlice("FEED_URLS")
-	rssStartInterval := getAndParseDurationSec("RSS_START_INTERVAL")
-	rssReadInterval := getAndParseDurationSec("RSS_READ_INTERVAL")
+	checkInterval := getAndParseDurationSec("CHECK_INTERVAL")
 	targetReminderChannelName := os.Getenv("TARGET_REMINDER_CHANNEL")
 	reminderDelays := getAndParseDelayMins("REMINDER_BEFORES")
 	reminderPrefix := getReminderPrefix(guildId)
@@ -280,8 +279,8 @@ func main() {
 	go sendMessage(session, targetNewsChannelId, messageChan)
 
 	go updateGameStatus(session, getAndTrimSlice("GAME_LIST"))
-	bgReadMultipleRSS(messageChan, feedURLs, time.Now().Add(-rssStartInterval), rssReadInterval)
-	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, rssReadInterval)
+	bgReadMultipleRSS(messageChan, feedURLs, time.Now().Add(-checkInterval), checkInterval)
+	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, checkInterval)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
