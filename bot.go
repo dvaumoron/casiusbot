@@ -275,12 +275,18 @@ func main() {
 		log.Println("Cannot create clean command :", err)
 	}
 
+	minusInterval := -checkInterval
+
 	messageChan := make(chan string)
 	go sendMessage(session, targetNewsChannelId, messageChan)
 
 	go updateGameStatus(session, gameList, updateGameInterval)
-	bgReadMultipleRSS(messageChan, feedURLs, checkInterval)
-	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, checkInterval)
+
+	feedNumber := len(feedURLs)
+	tickers := launchTickers(feedNumber+1, checkInterval)
+
+	bgReadMultipleRSS(messageChan, feedURLs, minusInterval, tickers)
+	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, minusInterval, tickers[feedNumber])
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
@@ -505,43 +511,43 @@ func updateGameStatus(session *discordgo.Session, games []string, interval time.
 	}
 }
 
-func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, interval time.Duration) {
-	subTickers := make([]chan time.Time, 0, len(feedURLs))
-	for range feedURLs {
-		subTickers = append(subTickers, make(chan time.Time, 1))
+func launchTickers(number int, interval time.Duration) []chan time.Time {
+	subTickers := make([]chan time.Time, number)
+	for index := range subTickers {
+		subTickers[index] = make(chan time.Time, 1)
 	}
 	go startDispatchTick(interval, subTickers)
-
-	for index, feedURL := range feedURLs {
-		go startReadRSS(messageSender, feedURL, subTickers[index])
-	}
+	return subTickers
 }
 
 func startDispatchTick(interval time.Duration, subTickers []chan time.Time) {
-	minusInteval := -interval
-	dispatchTick(time.Now(), minusInteval, subTickers)
+	dispatchTick(time.Now(), subTickers)
 	for newTime := range time.Tick(interval) {
-		dispatchTick(newTime, minusInteval, subTickers)
+		dispatchTick(newTime, subTickers)
 	}
 }
 
-func dispatchTick(newTime time.Time, minusInteval time.Duration, subTickers []chan time.Time) {
-	oldTime := newTime.Add(minusInteval)
+func dispatchTick(newTime time.Time, subTickers []chan time.Time) {
 	for _, subTicker := range subTickers {
-		subTicker <- oldTime
+		subTicker <- newTime
 	}
 }
 
-func startReadRSS(messageSender chan<- string, feedURL string, subTicker <-chan time.Time) {
+func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, minusInteval time.Duration, tickers []chan time.Time) {
+	for index, feedURL := range feedURLs {
+		go startReadRSS(messageSender, feedURL, minusInteval, tickers[index])
+	}
+}
+
+func startReadRSS(messageSender chan<- string, feedURL string, minusInteval time.Duration, ticker <-chan time.Time) {
 	fp := gofeed.NewParser()
-	for after := range subTicker {
-		readRSS(messageSender, fp, feedURL, after)
+	for current := range ticker {
+		readRSS(messageSender, fp, feedURL, current.Add(minusInteval))
 	}
 }
 
 func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, after time.Time) {
-	feed, err := fp.ParseURL(feedURL)
-	if err == nil {
+	if feed, err := fp.ParseURL(feedURL); err == nil {
 		for _, item := range feed.Items {
 			published := item.PublishedParsed
 			if !(published == nil || published.IsZero()) && published.After(after) {
@@ -553,16 +559,15 @@ func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, aft
 	}
 }
 
-func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Duration, channelId string, reminderPrefix string, interval time.Duration) {
-	minusInteval := -interval
-	for current := range time.Tick(interval) {
-		previous := current.Add(minusInteval)
+func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Duration, channelId string, reminderPrefix string, minusInteval time.Duration, ticker <-chan time.Time) {
+	for current := range ticker {
 		events, err := session.GuildScheduledEvents(guildId, false)
 		if err != nil {
 			log.Println("Cannot retrieve guild events :", err)
 			continue
 		}
 
+		previous := current.Add(minusInteval)
 		for _, event := range events {
 			eventStartTime := event.ScheduledStartTime
 			for _, delay := range delays {
