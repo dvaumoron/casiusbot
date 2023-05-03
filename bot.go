@@ -277,7 +277,7 @@ func main() {
 	go sendMessage(session, targetNewsChannelId, messageChan)
 
 	go updateGameStatus(session, getAndTrimSlice("GAME_LIST"))
-	bgReadMultipleRSS(messageChan, feedURLs, time.Now().Add(-checkInterval), checkInterval)
+	bgReadMultipleRSS(messageChan, feedURLs, checkInterval)
 	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, checkInterval)
 
 	stop := make(chan os.Signal, 1)
@@ -503,28 +503,28 @@ func updateGameStatus(session *discordgo.Session, games []string) {
 	}
 }
 
-func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, startTime time.Time, interval time.Duration) {
+func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, interval time.Duration) {
 	subTickers := make([]chan time.Time, 0, len(feedURLs))
 	for range feedURLs {
 		subTickers = append(subTickers, make(chan time.Time, 1))
 	}
-	go startDispatchTick(startTime, interval, subTickers)
+	go startDispatchTick(interval, subTickers)
 
 	for index, feedURL := range feedURLs {
 		go startReadRSS(messageSender, feedURL, subTickers[index])
 	}
 }
 
-func startDispatchTick(oldTime time.Time, interval time.Duration, subTickers []chan time.Time) {
-	dispatchTick(oldTime, subTickers)
-	oldTime = time.Now()
+func startDispatchTick(interval time.Duration, subTickers []chan time.Time) {
+	minusInteval := -interval
+	dispatchTick(time.Now(), minusInteval, subTickers)
 	for newTime := range time.Tick(interval) {
-		dispatchTick(oldTime, subTickers)
-		oldTime = newTime
+		dispatchTick(newTime, minusInteval, subTickers)
 	}
 }
 
-func dispatchTick(oldTime time.Time, subTickers []chan time.Time) {
+func dispatchTick(newTime time.Time, minusInteval time.Duration, subTickers []chan time.Time) {
+	oldTime := newTime.Add(minusInteval)
 	for _, subTicker := range subTickers {
 		subTicker <- oldTime
 	}
@@ -562,9 +562,10 @@ func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Dur
 		}
 
 		for _, event := range events {
+			eventStartTime := event.ScheduledStartTime
 			for _, delay := range delays {
 				// delay  is already negative
-				reminderTime := event.ScheduledStartTime.Add(delay)
+				reminderTime := eventStartTime.Add(delay)
 				if reminderTime.After(previous) && reminderTime.Before(current) {
 					message := reminderPrefix + event.ID
 					if _, err = session.ChannelMessageSend(channelId, message); err != nil {
