@@ -203,7 +203,7 @@ func main() {
 			})
 		case cleanCmd.Name:
 			membersCmd(s, i.GuildID, roleIdInSet(i.Member.Roles, cmdRoleIds), okCmdMsg, errPartialCmdMsg, errGlobalCmdMsg, errUnauthorizedCmdMsg, i.Interaction, func(guildMembers []*discordgo.Member) int {
-				return cleanPrefixes(session, guildMembers, i.GuildID, ownerId, prefixes, cmdworking)
+				return cleanPrefixes(s, guildMembers, i.GuildID, ownerId, prefixes, cmdworking)
 			})
 		}
 	})
