@@ -169,6 +169,7 @@ func main() {
 		log.Println("Trying to apply-prefix at startup generate errors :", counterError)
 	}
 
+	// TODO move the lock to use it in applyPrefixes
 	var mutex sync.RWMutex
 	cmdworking := false
 
@@ -554,7 +555,9 @@ func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, aft
 	if feed, err := fp.ParseURL(feedURL); err == nil {
 		for _, item := range feed.Items {
 			published := item.PublishedParsed
-			if !(published == nil || published.IsZero()) && published.After(after) {
+			if published == nil || published.IsZero() {
+				log.Println("RSS published parsing failed")
+			} else if published.After(after) {
 				messageSender <- item.Link
 			}
 		}
