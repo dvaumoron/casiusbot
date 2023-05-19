@@ -196,8 +196,8 @@ func main() {
 		initRoleChannelCleaning(session, guildMembers, roleChannelId, len(roleIdToPrefix))
 	}
 
-	cmdworking := &boolAtom{}
-	counterError := applyPrefixes(session, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, roleIdToPrefix, prefixes, cmdworking)
+	var cmdworking boolAtom
+	counterError := applyPrefixes(session, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, roleIdToPrefix, prefixes, &cmdworking)
 	if counterError != 0 {
 		log.Println("Trying to apply-prefix at startup generate errors :", counterError)
 	}
@@ -216,11 +216,11 @@ func main() {
 		switch i.ApplicationCommandData().Name {
 		case applyCmd.Name:
 			membersCmd(s, i.GuildID, roleIdInSet(i.Member.Roles, cmdRoleIds), okCmdMsg, errPartialCmdMsg, errGlobalCmdMsg, errUnauthorizedCmdMsg, i.Interaction, func(guildMembers []*discordgo.Member) int {
-				return applyPrefixes(s, guildMembers, i.GuildID, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, roleIdToPrefix, prefixes, cmdworking)
+				return applyPrefixes(s, guildMembers, i.GuildID, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, roleIdToPrefix, prefixes, &cmdworking)
 			})
 		case cleanCmd.Name:
 			membersCmd(s, i.GuildID, roleIdInSet(i.Member.Roles, cmdRoleIds), okCmdMsg, errPartialCmdMsg, errGlobalCmdMsg, errUnauthorizedCmdMsg, i.Interaction, func(guildMembers []*discordgo.Member) int {
-				return cleanPrefixes(s, guildMembers, i.GuildID, ownerId, prefixes, cmdworking)
+				return cleanPrefixes(s, guildMembers, i.GuildID, ownerId, prefixes, &cmdworking)
 			})
 		}
 	})
