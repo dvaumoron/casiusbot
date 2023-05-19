@@ -279,8 +279,6 @@ func main() {
 		log.Println("Cannot create clean command :", err)
 	}
 
-	minusInterval := -checkInterval
-
 	messageChan := make(chan string)
 	go sendMessage(session, targetNewsChannelId, messageChan)
 
@@ -289,8 +287,9 @@ func main() {
 	feedNumber := len(feedURLs)
 	tickers := launchTickers(feedNumber+1, checkInterval)
 
-	bgReadMultipleRSS(messageChan, feedURLs, minusInterval, tickers)
-	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, minusInterval, tickers[feedNumber])
+	startTime := time.Now().Add(-checkInterval)
+	bgReadMultipleRSS(messageChan, feedURLs, startTime, tickers)
+	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, startTime, tickers[feedNumber])
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
@@ -587,35 +586,42 @@ func dispatchTick(newTime time.Time, subTickers []chan time.Time) {
 	}
 }
 
-func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, minusInteval time.Duration, tickers []chan time.Time) {
+func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, startTime time.Time, tickers []chan time.Time) {
 	for index, feedURL := range feedURLs {
-		go startReadRSS(messageSender, feedURL, minusInteval, tickers[index])
+		go startReadRSS(messageSender, feedURL, startTime, tickers[index])
 	}
 }
 
-func startReadRSS(messageSender chan<- string, feedURL string, minusInteval time.Duration, ticker <-chan time.Time) {
+func startReadRSS(messageSender chan<- string, feedURL string, previous time.Time, ticker <-chan time.Time) {
 	fp := gofeed.NewParser()
-	for current := range ticker {
-		readRSS(messageSender, fp, feedURL, current.Add(minusInteval))
+	for range ticker {
+		previous = readRSS(messageSender, fp, feedURL, previous)
 	}
 }
 
-func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, after time.Time) {
+func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, after time.Time) time.Time {
+	var mostRecent time.Time
 	if feed, err := fp.ParseURL(feedURL); err == nil {
 		for _, item := range feed.Items {
 			published := item.PublishedParsed
 			if published == nil || published.IsZero() {
 				log.Println("RSS published parsing failed")
-			} else if published.After(after) {
-				messageSender <- item.Link
+			} else {
+				if published.After(after) {
+					messageSender <- item.Link
+				}
+				if published.After(mostRecent) {
+					mostRecent = *published
+				}
 			}
 		}
 	} else {
 		log.Println("RSS parsing failed :", err)
 	}
+	return mostRecent
 }
 
-func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Duration, channelId string, reminderPrefix string, minusInteval time.Duration, ticker <-chan time.Time) {
+func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Duration, channelId string, reminderPrefix string, previous time.Time, ticker <-chan time.Time) {
 	for current := range ticker {
 		events, err := session.GuildScheduledEvents(guildId, false)
 		if err != nil {
@@ -623,7 +629,6 @@ func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Dur
 			continue
 		}
 
-		previous := current.Add(minusInteval)
 		for _, event := range events {
 			eventStartTime := event.ScheduledStartTime
 			for _, delay := range delays {
@@ -639,5 +644,6 @@ func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Dur
 				}
 			}
 		}
+		previous = current
 	}
 }
