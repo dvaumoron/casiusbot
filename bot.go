@@ -107,7 +107,7 @@ func main() {
 
 	guild, err := session.Guild(guildId)
 	if err != nil {
-		log.Println("Cannot retrieve owner of the guild :", err)
+		log.Println("Cannot retrieve the guild :", err)
 		return
 	}
 	ownerId := guild.OwnerID
@@ -193,50 +193,7 @@ func main() {
 	}
 
 	if roleChannelCleaning {
-		memberIdSet := map[string]empty{}
-		for _, member := range guildMembers {
-			memberIdSet[member.User.ID] = empty{}
-		}
-
-		messages, err := session.ChannelMessagesPinned(roleChannelId)
-		if err != nil || len(messages) == 0 {
-			log.Println("Cannot retrieve the pinned messages in roleChannel :", err)
-			return
-		}
-		message := messages[0]
-		// emptying data no longer useful for GC cleaning
-		messages = nil
-
-		roleMessageId := message.ID
-		roleEmojiIds := make([]string, 0, len(roleIdToPrefix))
-		for _, reaction := range message.Reactions {
-			emojiId := reaction.Emoji.ID
-			roleEmojiIds = append(roleEmojiIds, emojiId)
-
-			users, err := session.MessageReactions(roleChannelId, roleMessageId, emojiId, 100, "", "")
-			if err != nil {
-				log.Println("Cannot retrieve the reaction on the roleMessage :", err)
-				return
-			}
-			for _, user := range users {
-				userId := user.ID
-				if _, ok := memberIdSet[userId]; !ok {
-					if err = session.MessageReactionRemove(roleChannelId, roleMessageId, emojiId, userId); err != nil {
-						log.Println("Cannot remove user reaction :", err)
-					}
-				}
-			}
-		}
-
-		session.AddHandler(func(s *discordgo.Session, r *discordgo.GuildMemberRemove) {
-			userId := r.User.ID
-			var err error
-			for _, emojiId := range roleEmojiIds {
-				if err = s.MessageReactionRemove(roleChannelId, roleMessageId, emojiId, userId); err != nil {
-					log.Println("Cannot remove user reaction (2) :", err)
-				}
-			}
-		})
+		initRoleChannelCleaning(session, guildMembers, roleChannelId, len(roleIdToPrefix))
 	}
 
 	cmdworking := &boolAtom{}
@@ -646,4 +603,51 @@ func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Dur
 		}
 		previous = current
 	}
+}
+
+func initRoleChannelCleaning(session *discordgo.Session, guildMembers []*discordgo.Member, roleChannelId string, initSize int) {
+	memberIdSet := map[string]empty{}
+	for _, member := range guildMembers {
+		memberIdSet[member.User.ID] = empty{}
+	}
+
+	messages, err := session.ChannelMessagesPinned(roleChannelId)
+	if err != nil || len(messages) == 0 {
+		log.Println("Cannot retrieve the pinned messages in roleChannel :", err)
+		return
+	}
+	message := messages[0]
+	// emptying data no longer useful for GC cleaning
+	messages = nil
+
+	roleMessageId := message.ID
+	roleEmojiIds := make([]string, 0, initSize)
+	for _, reaction := range message.Reactions {
+		emojiId := reaction.Emoji.ID
+		roleEmojiIds = append(roleEmojiIds, emojiId)
+
+		users, err := session.MessageReactions(roleChannelId, roleMessageId, emojiId, 100, "", "")
+		if err != nil {
+			log.Println("Cannot retrieve the reaction on the roleMessage :", err)
+			return
+		}
+		for _, user := range users {
+			userId := user.ID
+			if _, ok := memberIdSet[userId]; !ok {
+				if err = session.MessageReactionRemove(roleChannelId, roleMessageId, emojiId, userId); err != nil {
+					log.Println("Cannot remove user reaction :", err)
+				}
+			}
+		}
+	}
+
+	session.AddHandler(func(s *discordgo.Session, r *discordgo.GuildMemberRemove) {
+		userId := r.User.ID
+		var err error
+		for _, emojiId := range roleEmojiIds {
+			if err = s.MessageReactionRemove(roleChannelId, roleMessageId, emojiId, userId); err != nil {
+				log.Println("Cannot remove user reaction (2) :", err)
+			}
+		}
+	})
 }
