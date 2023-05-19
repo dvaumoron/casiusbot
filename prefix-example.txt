@@ -1,2 +1,2 @@
-Role1=foo
-Role2=bar
+RoleName1=foo
+RoleName2=bar
