@@ -48,7 +48,7 @@ func startReadRSS(messageSender chan<- string, feedURL string, previous time.Tim
 }
 
 func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, after time.Time) time.Time {
-	var mostRecent time.Time
+	var lastPublished time.Time
 	if feed, err := fp.ParseURL(feedURL); err == nil {
 		for _, item := range feed.Items {
 			published := item.PublishedParsed
@@ -58,13 +58,16 @@ func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, aft
 				if published.After(after) {
 					messageSender <- item.Link
 				}
-				if published.After(mostRecent) {
-					mostRecent = *published
+				if published.After(lastPublished) {
+					lastPublished = *published
 				}
 			}
 		}
 	} else {
 		log.Println("RSS parsing failed :", err)
 	}
-	return mostRecent
+	if lastPublished.IsZero() {
+		lastPublished = after
+	}
+	return lastPublished
 }
