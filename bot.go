@@ -45,6 +45,7 @@ func main() {
 	errUnauthorizedCmdMsg := buildMsgWithPrefixList("MESSAGE_CMD_UNAUTHORIZED", roleNameToPrefix)
 
 	guildId := os.Getenv("GUILD_ID")
+	deepLToken := os.Getenv("DEEPL_TOKEN")
 	cmdRoles := strings.Split(os.Getenv("ROLES_CMD"), ",")
 	defaultRole := os.Getenv("DEFAULT_ROLE")
 	ignoredRoles := strings.Split(os.Getenv("IGNORED_ROLES"), ",")
@@ -216,6 +217,15 @@ func main() {
 	go sendMessage(session, targetNewsChannelId, messageChan)
 
 	go updateGameStatus(session, gameList, updateGameInterval)
+
+	var filteredChan <-chan string = messageChan
+	if deepLToken != "" {
+		// TODO
+		deepLClient, err := makeDeepLClient("", deepLToken, "", "", "", "")
+		if err == nil {
+			filteredChan = addTranslationFilter(messageChan, deepLClient)
+		}
+	}
 
 	feedNumber := len(feedURLs)
 	tickers := launchTickers(feedNumber+1, checkInterval)

@@ -41,14 +41,14 @@ func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, startTime
 	}
 }
 
-func startReadRSS(messageSender chan<- string, feedURL string, previous time.Time, ticker <-chan time.Time) {
+func startReadRSS(messageSender chan<- string, feedURL string, checkLink func(string) bool, previous time.Time, ticker <-chan time.Time) {
 	fp := gofeed.NewParser()
 	for range ticker {
-		previous = readRSS(messageSender, fp, feedURL, previous)
+		previous = readRSS(messageSender, fp, feedURL, checkLink, previous)
 	}
 }
 
-func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, after time.Time) time.Time {
+func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, checkLink func(string) bool, after time.Time) time.Time {
 	var lastPublished time.Time
 	if feed, err := fp.ParseURL(feedURL); err == nil {
 		for _, item := range feed.Items {
@@ -56,7 +56,7 @@ func readRSS(messageSender chan<- string, fp *gofeed.Parser, feedURL string, aft
 			if published == nil || published.IsZero() {
 				log.Println("RSS published parsing failed")
 			} else {
-				if published.After(after) {
+				if published.After(after) && checkLink(item.Link) {
 					messageSender <- item.Link
 				}
 				if published.After(lastPublished) {

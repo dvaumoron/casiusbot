@@ -49,11 +49,15 @@ func roleIdInSet(roleIds []string, roleIdSet map[string]empty) bool {
 }
 
 func getAndTrimSlice(valuesName string) []string {
-	values := strings.Split(os.Getenv(valuesName), ",")
-	for index, value := range values {
-		values[index] = strings.TrimSpace(value)
+	values := os.Getenv(valuesName)
+	if values == "" {
+		return nil
 	}
-	return values
+	splitted := strings.Split(values, ",")
+	for index, value := range splitted {
+		splitted[index] = strings.TrimSpace(value)
+	}
+	return splitted
 }
 
 func getAndParseDurationSec(valueName string) time.Duration {
@@ -105,7 +109,9 @@ func dispatchTick(newTime time.Time, subTickers []chan time.Time) {
 
 func updateGameStatus(session *discordgo.Session, games []string, interval time.Duration) {
 	gamesLen := len(games)
-	for range time.Tick(interval) {
-		session.UpdateGameStatus(0, games[rand.Intn(gamesLen)])
+	if gamesLen != 0 {
+		for range time.Tick(interval) {
+			session.UpdateGameStatus(0, games[rand.Intn(gamesLen)])
+		}
 	}
 }
