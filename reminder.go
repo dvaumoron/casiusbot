@@ -36,7 +36,7 @@ func buildReminderPrefix(reminderName string, guildId string) string {
 	return reminderBuilder.String()
 }
 
-func bgRemindEvent(session *discordgo.Session, guildId string, delays []time.Duration, channelId string, reminderPrefix string, previous time.Time, ticker <-chan time.Time) {
+func remindEvent(session *discordgo.Session, guildId string, delays []time.Duration, channelId string, reminderPrefix string, previous time.Time, ticker <-chan time.Time) {
 	for current := range ticker {
 		events, err := session.GuildScheduledEvents(guildId, false)
 		if err != nil {

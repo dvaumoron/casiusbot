@@ -221,7 +221,7 @@ func main() {
 
 	startTime := time.Now().Add(-checkInterval)
 	bgReadMultipleRSS(messageSender, feedURLs, startTime, tickers)
-	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, startTime, tickers[feedNumber])
+	go remindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, startTime, tickers[feedNumber])
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)

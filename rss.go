@@ -47,7 +47,7 @@ func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, startTime
 		if err == nil {
 			translater = deepLClient
 		} else {
-			log.Println("Failed to create translater", err)
+			log.Println("Failed to create translater :", err)
 		}
 	}
 
