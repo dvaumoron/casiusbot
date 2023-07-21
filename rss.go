@@ -21,7 +21,6 @@ package main
 import (
 	"log"
 	"os"
-	"regexp"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -54,30 +53,24 @@ func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, startTime
 	selectors := getAndTrimSlice("FEED_TRANSLATE_SELECTORS")
 	selectorsSize := len(selectors)
 
-	checkers := getAndTrimSlice("FEED_LINK_CHECKERS")
-	checkersSize := len(checkers)
+	checkRules := getAndTrimSlice("FEED_LINK_CHECKERS")
+	checkRulesSize := len(checkRules)
 
 	defaultLinkSender := createLinkSender(messageSender)
-
 	for index, feedURL := range feedURLs {
-		filteringSender := defaultLinkSender
-		if translater != nil && index < selectorsSize {
-			if selector := selectors[index]; selector != "" {
-				filteringSender = bgAddTranslationFilter(messageSender, selector, translater)
-			}
-		}
-		checkLink := acceptAll
-		if index < checkersSize {
-			if checker := checkers[index]; checker != "" {
-				if re, err := regexp.Compile(checker); err == nil {
-					checkLink = re.MatchString
-				} else {
-					log.Println("Failed to compile regexp to check link :", err)
-				}
-			}
-		}
+		filteringSender := initLinkSender(messageSender, defaultLinkSender, translater, selectors, index, selectorsSize)
+		checkLink := initChecker(checkRules, index, checkRulesSize)
 		go startReadRSS(filteringSender, feedURL, checkLink, startTime, tickers[index])
 	}
+}
+
+func initLinkSender(messageSender chan<- string, defaultLinkSender chan<- linkInfo, translater Translater, selectors []string, index int, selectorsSize int) chan<- linkInfo {
+	if translater != nil && index < selectorsSize {
+		if selector := selectors[index]; selector != "" {
+			return bgAddTranslationFilter(messageSender, selector, translater)
+		}
+	}
+	return defaultLinkSender
 }
 
 func createLinkSender(messageSender chan<- string) chan<- linkInfo {
@@ -126,8 +119,4 @@ func readRSS(linkSender chan<- linkInfo, fp *gofeed.Parser, feedURL string, chec
 		lastPublished = after
 	}
 	return lastPublished
-}
-
-func acceptAll(link string) bool {
-	return true
 }

@@ -32,39 +32,52 @@ type Translater interface {
 
 func bgAddTranslationFilter(messageSender chan<- string, selector string, translater Translater) chan<- linkInfo {
 	filteringChan := make(chan linkInfo)
-	go addTranslationFiltering(messageSender, selector, translater, filteringChan)
+	go addTranslationFiltering(messageSender, initExtracter(selector), translater, filteringChan)
 	return filteringChan
 }
 
-func addTranslationFiltering(messageSender chan<- string, selector string, translater Translater, filteringChan <-chan linkInfo) {
+func addTranslationFiltering(messageSender chan<- string, extracter func(linkInfo) string, translater Translater, filteringChan <-chan linkInfo) {
 	for info := range filteringChan {
 		// use a separate function to avoid waiting infinitely for the defering execution of body close
-		addTranslationFilter(messageSender, selector, translater, info)
+		addTranslationFilter(messageSender, extracter, translater, info)
 	}
 }
 
-func addTranslationFilter(messageSender chan<- string, selector string, translater Translater, info linkInfo) {
-	extract := info.description
-	if strings.ToLower(selector[:4]) == "css:" {
+func addTranslationFilter(messageSender chan<- string, extractor func(linkInfo) string, translater Translater, info linkInfo) {
+	var filteredMessageBuilder strings.Builder
+	filteredMessageBuilder.WriteString(info.link)
+	filteredMessageBuilder.WriteByte('\n')
+	filteredMessageBuilder.WriteString(translater.Translate(extractor(info)))
+	messageSender <- filteredMessageBuilder.String()
+}
+
+func initExtracter(selector string) func(linkInfo) string {
+	if len(selector) > 3 {
+		if strings.ToLower(selector[:4]) == "css:" {
+			return createExtracter(selector[4:])
+		}
+	}
+	return extractDescription
+}
+
+func createExtracter(selector string) func(linkInfo) string {
+	return func(info linkInfo) string {
 		resp, err := http.Get(info.link)
 		if err != nil {
 			log.Println("Failed to retrieved content from link :", err)
-			return
+			return ""
 		}
 		defer resp.Body.Close()
 
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
 		if err != nil {
 			log.Println("Failed to parse content from link :", err)
-			return
+			return ""
 		}
-		extract = doc.Find(selector[4:]).Text()
+		return doc.Find(selector).Text()
 	}
-	translated := translater.Translate(extract)
+}
 
-	var filteredMessageBuilder strings.Builder
-	filteredMessageBuilder.WriteString(info.link)
-	filteredMessageBuilder.WriteByte('\n')
-	filteredMessageBuilder.WriteString(translated)
-	messageSender <- filteredMessageBuilder.String()
+func extractDescription(info linkInfo) string {
+	return info.description
 }
