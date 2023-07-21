@@ -118,7 +118,7 @@ func (c DeepLClient) checkUsage(size int) error {
 		return errCast
 	}
 
-	if int(limit-count) >= size {
+	if int(limit-count) < size {
 		return errLimit
 	}
 	return nil
