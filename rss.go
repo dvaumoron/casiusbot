@@ -41,8 +41,8 @@ func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, startTime
 	if deepLToken := os.Getenv("DEEPL_TOKEN"); deepLToken != "" {
 		deepLUrl := os.Getenv("DEEPL_API_URL")
 		targetLang := os.Getenv("TRANSLATE_TARGET_LANG")
-		messageError := os.Getenv("DEEPL_API_URL")
-		messageLimit := os.Getenv("DEEPL_API_URL")
+		messageError := os.Getenv("MESSAGE_TRANSLATE_ERROR")
+		messageLimit := os.Getenv("MESSAGE_TRANSLATE_LIMIT")
 		deepLClient, err := makeDeepLClient(deepLUrl, deepLToken, "", targetLang, messageError, messageLimit)
 		if err == nil {
 			translater = deepLClient
