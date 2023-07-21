@@ -58,7 +58,7 @@ func addTranslationFilter(messageSender chan<- string, selector string, translat
 			log.Println("Failed to parse content from link :", err)
 			return
 		}
-		extract = doc.Find(selector).Text()
+		extract = doc.Find(selector[4:]).Text()
 	}
 	translated := translater.Translate(extract)
 
