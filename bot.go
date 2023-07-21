@@ -219,7 +219,7 @@ func main() {
 	feedNumber := len(feedURLs)
 	tickers := launchTickers(feedNumber+1, checkInterval)
 
-	startTime := time.Now().Add(-checkInterval)
+	startTime := time.Now().Add(-checkInterval).Add(-getAndParseDurationSec("INITIAL_BACKWARD_LOADING"))
 	bgReadMultipleRSS(messageSender, feedURLs, startTime, tickers)
 	go remindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, startTime, tickers[feedNumber])
 
