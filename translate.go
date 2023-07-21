@@ -60,7 +60,16 @@ func initExtracter(selector string) func(linkInfo) string {
 	return extractDescription
 }
 
+func extractDescription(info linkInfo) string {
+	return info.description
+}
+
 func createExtracter(selector string) func(linkInfo) string {
+	toString := htmlToString
+	if strings.Contains(selector, "noscript") {
+		toString = noscriptToString
+	}
+
 	return func(info linkInfo) string {
 		resp, err := http.Get(info.link)
 		if err != nil {
@@ -74,10 +83,43 @@ func createExtracter(selector string) func(linkInfo) string {
 			log.Println("Failed to parse content from link :", err)
 			return ""
 		}
-		return doc.Find(selector).Text()
+		return toString(doc.Find(selector))
 	}
 }
 
-func extractDescription(info linkInfo) string {
-	return info.description
+func htmlToString(html *goquery.Selection) string {
+	notBrLast := false
+	var buffer strings.Builder
+	walkselection(html, &buffer, &notBrLast)
+	return buffer.String()
+}
+
+func noscriptToString(noscript *goquery.Selection) string {
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(noscript.Text()))
+	if err != nil {
+		log.Println("Failed to parse content from selection :", err)
+		return ""
+	}
+
+	notBrLast := false
+	var buffer strings.Builder
+	walkselection(doc.Find("body"), &buffer, &notBrLast)
+	return buffer.String()
+}
+
+func walkselection(parent *goquery.Selection, buffer *strings.Builder, notBrLast *bool) {
+	parent.Each(func(i int, s *goquery.Selection) {
+		switch goquery.NodeName(s) {
+		case "br":
+			if *notBrLast {
+				*notBrLast = false
+				buffer.WriteByte('\n')
+			}
+		case "#text":
+			*notBrLast = true
+			buffer.WriteString(s.Text())
+		default:
+			walkselection(s.Contents(), buffer, notBrLast)
+		}
+	})
 }
