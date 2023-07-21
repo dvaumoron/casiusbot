@@ -63,7 +63,7 @@ func getAndTrimSlice(valuesName string) []string {
 func getAndParseDurationSec(valueName string) time.Duration {
 	valueSec, err := strconv.ParseInt(os.Getenv(valueName), 10, 64)
 	if err != nil {
-		log.Fatalln("Configuration", valueName, "parsing failed :", err)
+		log.Println("Configuration", valueName, "parsing failed :", err)
 	}
 	return time.Duration(valueSec) * time.Second
 }
