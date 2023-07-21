@@ -45,7 +45,6 @@ func main() {
 	errUnauthorizedCmdMsg := buildMsgWithPrefixList("MESSAGE_CMD_UNAUTHORIZED", roleNameToPrefix)
 
 	guildId := os.Getenv("GUILD_ID")
-	deepLToken := os.Getenv("DEEPL_TOKEN")
 	cmdRoles := strings.Split(os.Getenv("ROLES_CMD"), ",")
 	defaultRole := os.Getenv("DEFAULT_ROLE")
 	ignoredRoles := strings.Split(os.Getenv("IGNORED_ROLES"), ",")
@@ -213,25 +212,15 @@ func main() {
 		log.Println("Cannot create clean command :", err)
 	}
 
-	messageChan := make(chan string)
-	go sendMessage(session, targetNewsChannelId, messageChan)
+	messageSender := createMessageSender(session, targetNewsChannelId)
 
 	go updateGameStatus(session, gameList, updateGameInterval)
-
-	var filteredChan <-chan string = messageChan
-	if deepLToken != "" {
-		// TODO
-		deepLClient, err := makeDeepLClient("", deepLToken, "", "", "", "")
-		if err == nil {
-			filteredChan = addTranslationFilter(messageChan, deepLClient)
-		}
-	}
 
 	feedNumber := len(feedURLs)
 	tickers := launchTickers(feedNumber+1, checkInterval)
 
 	startTime := time.Now().Add(-checkInterval)
-	bgReadMultipleRSS(messageChan, feedURLs, startTime, tickers)
+	bgReadMultipleRSS(messageSender, feedURLs, startTime, tickers)
 	bgRemindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, startTime, tickers[feedNumber])
 
 	stop := make(chan os.Signal, 1)

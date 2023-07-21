@@ -18,26 +18,53 @@
 
 package main
 
-import "strings"
+import (
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/PuerkitoBio/goquery"
+)
 
 type Translater interface {
 	Translate(msg string) string
 }
 
-func addTranslationFilter(messageReceiver <-chan string, translater Translater) <-chan string {
-	filteredChan := make(chan string)
-
-	return filteredChan
+func bgAddTranslationFilter(messageSender chan<- string, selector string, translater Translater) chan<- linkInfo {
+	filteringChan := make(chan linkInfo)
+	go addTranslationFiltering(messageSender, selector, translater, filteringChan)
+	return filteringChan
 }
 
-func addTranslationFiltering(messageReceiver <-chan string, translater Translater, filteredChan chan<- string) {
-	for message := range messageReceiver {
-		var filteredMessageBuilder strings.Builder
-		filteredMessageBuilder.WriteString(message)
-		filteredMessageBuilder.WriteByte('\n')
-
-		// TODO
-
-		filteredChan <- filteredMessageBuilder.String()
+func addTranslationFiltering(messageSender chan<- string, selector string, translater Translater, filteringChan <-chan linkInfo) {
+	for info := range filteringChan {
+		// use a separate function to avoid waiting infinitely for the defering execution of body close
+		addTranslationFilter(messageSender, selector, translater, info)
 	}
+}
+
+func addTranslationFilter(messageSender chan<- string, selector string, translater Translater, info linkInfo) {
+	extract := info.description
+	if strings.ToLower(selector[:4]) == "css:" {
+		resp, err := http.Get(info.link)
+		if err != nil {
+			log.Println("Failed to retrieved content from link :", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		doc, err := goquery.NewDocumentFromReader(resp.Body)
+		if err != nil {
+			log.Println("Failed to parse content from link :", err)
+			return
+		}
+		extract = doc.Find(selector).Text()
+	}
+	translated := translater.Translate(extract)
+
+	var filteredMessageBuilder strings.Builder
+	filteredMessageBuilder.WriteString(info.link)
+	filteredMessageBuilder.WriteByte('\n')
+	filteredMessageBuilder.WriteString(translated)
+	messageSender <- filteredMessageBuilder.String()
 }

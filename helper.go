@@ -85,6 +85,21 @@ func getAndParseDelayMins(valuesName string) []time.Duration {
 	return delays
 }
 
+func createMessageSender(session *discordgo.Session, channelId string) chan<- string {
+	messageChan := make(chan string)
+	go sendMessage(session, channelId, messageChan)
+	return messageChan
+}
+
+func sendMessage(session *discordgo.Session, channelId string, messageReceiver <-chan string) {
+	for message := range messageReceiver {
+		_, err := session.ChannelMessageSend(channelId, message)
+		if err != nil {
+			log.Println("Message sending failed :", err)
+		}
+	}
+}
+
 func launchTickers(number int, interval time.Duration) []chan time.Time {
 	subTickers := make([]chan time.Time, number)
 	for index := range subTickers {

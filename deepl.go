@@ -56,11 +56,17 @@ func makeDeepLClient(baseUrl string, token string, sourceLang string, targetLang
 		usageUrl: usageUrl, translateUrl: translateUrl, token: "DeepL-Auth-Key " + token,
 		sourceLang: sourceLang, targetLang: targetLang, messageError: messageError, messageLimit: messageLimit,
 	}
-	return res, nil
+	return res, res.checkUsage(1)
 }
 
 func (c DeepLClient) Translate(msg string) string {
-	err := c.checkUsage(len(msg))
+	msgSize := len(msg)
+	if msgSize == 0 {
+		log.Println("Empty message : No translation")
+		return c.messageError
+	}
+
+	err := c.checkUsage(msgSize)
 	if err != nil {
 		if err == errLimit {
 			return c.messageLimit
@@ -112,7 +118,7 @@ func (c DeepLClient) checkUsage(size int) error {
 		return errCast
 	}
 
-	if int(limit-count) > size {
+	if int(limit-count) >= size {
 		return errLimit
 	}
 	return nil
