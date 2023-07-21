@@ -29,6 +29,7 @@ import (
 )
 
 var errCast = errors.New("failed to cast the retrieved result")
+var errNoResult = errors.New("no translation in retrieved result")
 var errLimit = errors.New("exceded free translate credit limit")
 
 type DeepLClient struct {
@@ -154,12 +155,21 @@ func (c DeepLClient) innerTranslate(msg string) (string, error) {
 		return "", err
 	}
 
-	castedTranslations, ok := parsed["translations"].(map[string]any)
+	castedTranslations, ok := parsed["translations"].([]any)
 	if !ok {
 		return "", errCast
 	}
 
-	castedText, ok := castedTranslations["text"].(string)
+	if len(castedTranslations) == 0 {
+		return "", errNoResult
+	}
+
+	castedTranslation, ok := castedTranslations[0].(map[string]any)
+	if !ok {
+		return "", errCast
+	}
+
+	castedText, ok := castedTranslation["text"].(string)
 	if !ok {
 		return "", errCast
 	}
