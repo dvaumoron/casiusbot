@@ -87,7 +87,7 @@ func membersCmd(s *discordgo.Session, guildId string, authorized bool, okCmdMsg 
 	if authorized {
 		if guildMembers, err := s.GuildMembers(guildId, "", 1000); err == nil {
 			if counterError := cmdEffect(guildMembers); counterError != 0 {
-				returnMsg = buildPartialErrorString(errPartialCmdMsg, counterError)
+				returnMsg = errPartialCmdMsg + strconv.Itoa(counterError)
 			}
 		} else {
 			log.Println("Members retrieving failed :", err)
@@ -273,14 +273,6 @@ func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, roleIdTo
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{Content: returnMsg},
 	})
-}
-
-func buildPartialErrorString(s string, i int) string {
-	var buffer strings.Builder
-	buffer.WriteString(s)
-	buffer.WriteByte(' ')
-	buffer.WriteString(strconv.Itoa(i))
-	return buffer.String()
 }
 
 type nameValueSortByName [][2]string

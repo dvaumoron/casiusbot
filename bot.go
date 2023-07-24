@@ -40,7 +40,7 @@ func main() {
 	}
 
 	okCmdMsg := os.Getenv("MESSAGE_CMD_OK")
-	errPartialCmdMsg := os.Getenv("MESSAGE_CMD_PARTIAL_ERROR")
+	errPartialCmdMsg := os.Getenv("MESSAGE_CMD_PARTIAL_ERROR") + " "
 	errGlobalCmdMsg := os.Getenv("MESSAGE_CMD_GLOBAL_ERROR")
 	errUnauthorizedCmdMsg := buildMsgWithNameValueList(os.Getenv("MESSAGE_CMD_UNAUTHORIZED"), roleNameToPrefix)
 	countCmdMsg := os.Getenv("MESSAGE_CMD_COUNT")
