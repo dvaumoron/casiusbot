@@ -21,6 +21,7 @@ package main
 import (
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -37,11 +38,11 @@ func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, startTime
 	}
 
 	var translater Translater
-	if deepLToken := os.Getenv("DEEPL_TOKEN"); deepLToken != "" {
-		deepLUrl := os.Getenv("DEEPL_API_URL")
-		targetLang := os.Getenv("TRANSLATE_TARGET_LANG")
-		messageError := os.Getenv("MESSAGE_TRANSLATE_ERROR")
-		messageLimit := os.Getenv("MESSAGE_TRANSLATE_LIMIT")
+	if deepLToken := strings.TrimSpace(os.Getenv("DEEPL_TOKEN")); deepLToken != "" {
+		deepLUrl := strings.TrimSpace(os.Getenv("DEEPL_API_URL"))
+		targetLang := strings.TrimSpace(os.Getenv("TRANSLATE_TARGET_LANG"))
+		messageError := strings.TrimSpace(os.Getenv("MESSAGE_TRANSLATE_ERROR"))
+		messageLimit := strings.TrimSpace(os.Getenv("MESSAGE_TRANSLATE_LIMIT"))
 		deepLClient, err := makeDeepLClient(deepLUrl, deepLToken, "", targetLang, messageError, messageLimit)
 		if err == nil {
 			translater = deepLClient

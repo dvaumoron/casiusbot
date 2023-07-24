@@ -29,7 +29,7 @@ import (
 
 func buildReminderPrefix(reminderName string, guildId string) string {
 	var reminderBuilder strings.Builder
-	reminderBuilder.WriteString(os.Getenv(reminderName))
+	reminderBuilder.WriteString(strings.TrimSpace(os.Getenv(reminderName)))
 	reminderBuilder.WriteString("\nhttps://discord.com/events/")
 	reminderBuilder.WriteString(guildId)
 	reminderBuilder.WriteByte('/')

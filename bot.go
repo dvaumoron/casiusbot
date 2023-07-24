@@ -39,24 +39,24 @@ func main() {
 		log.Fatalln("Cannot read the configuration file :", err)
 	}
 
-	okCmdMsg := os.Getenv("MESSAGE_CMD_OK")
-	errPartialCmdMsg := os.Getenv("MESSAGE_CMD_PARTIAL_ERROR") + " "
-	errGlobalCmdMsg := os.Getenv("MESSAGE_CMD_GLOBAL_ERROR")
-	errUnauthorizedCmdMsg := buildMsgWithNameValueList(os.Getenv("MESSAGE_CMD_UNAUTHORIZED"), roleNameToPrefix)
-	countCmdMsg := os.Getenv("MESSAGE_CMD_COUNT")
+	okCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_OK"))
+	errPartialCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_PARTIAL_ERROR")) + " "
+	errGlobalCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_GLOBAL_ERROR"))
+	errUnauthorizedCmdMsg := buildMsgWithNameValueList(strings.TrimSpace(os.Getenv("MESSAGE_CMD_UNAUTHORIZED")), roleNameToPrefix)
+	countCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_COUNT"))
 
-	guildId := os.Getenv("GUILD_ID")
+	guildId := strings.TrimSpace(os.Getenv("GUILD_ID"))
 	authorizedRoles := strings.Split(os.Getenv("AUTHORIZED_ROLES"), ",")
 	forbiddenRoles := strings.Split(os.Getenv("FORBIDDEN_ROLES"), ",")
-	defaultRole := os.Getenv("DEFAULT_ROLE")
+	defaultRole := strings.TrimSpace(os.Getenv("DEFAULT_ROLE"))
 	ignoredRoles := strings.Split(os.Getenv("IGNORED_ROLES"), ",")
 	specialRoles := strings.Split(os.Getenv("SPECIAL_ROLES"), ",")
 	gameList := getAndTrimSlice("GAME_LIST")
 	updateGameInterval := 30 * time.Second
-	targetNewsChannelName := os.Getenv("TARGET_NEWS_CHANNEL")
+	targetNewsChannelName := strings.TrimSpace(os.Getenv("TARGET_NEWS_CHANNEL"))
 	feedURLs := getAndTrimSlice("FEED_URLS")
 	checkInterval := getAndParseDurationSec("CHECK_INTERVAL")
-	targetReminderChannelName := os.Getenv("TARGET_REMINDER_CHANNEL")
+	targetReminderChannelName := strings.TrimSpace(os.Getenv("TARGET_REMINDER_CHANNEL"))
 	reminderDelays := getAndParseDelayMins("REMINDER_BEFORES")
 	reminderPrefix := buildReminderPrefix("REMINDER_TEXT", guildId)
 
