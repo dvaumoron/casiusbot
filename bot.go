@@ -34,18 +34,20 @@ func main() {
 		log.Println("Loaded .env file")
 	}
 
-	roleNameToPrefix, prefixes, err := readPrefixConfig("PREFIX_FILE_PATH")
+	roleNameToPrefix, prefixes, cmdToRoleName, err := readPrefixConfig("PREFIX_FILE_PATH")
 	if err != nil {
-		log.Fatalln("Cannot open the configuration file :", err)
+		log.Fatalln("Cannot read the configuration file :", err)
 	}
 
 	okCmdMsg := os.Getenv("MESSAGE_CMD_OK")
 	errPartialCmdMsg := os.Getenv("MESSAGE_CMD_PARTIAL_ERROR")
 	errGlobalCmdMsg := os.Getenv("MESSAGE_CMD_GLOBAL_ERROR")
-	errUnauthorizedCmdMsg := buildMsgWithPrefixList("MESSAGE_CMD_UNAUTHORIZED", roleNameToPrefix)
+	errUnauthorizedCmdMsg := buildMsgWithNameValueList(os.Getenv("MESSAGE_CMD_UNAUTHORIZED"), roleNameToPrefix)
+	countCmdMsg := os.Getenv("MESSAGE_CMD_COUNT")
 
 	guildId := os.Getenv("GUILD_ID")
-	cmdRoles := strings.Split(os.Getenv("ROLES_CMD"), ",")
+	authorizedRoles := strings.Split(os.Getenv("AUTHORIZED_ROLES"), ",")
+	forbiddenRoles := strings.Split(os.Getenv("FORBIDDEN_ROLES"), ",")
 	defaultRole := os.Getenv("DEFAULT_ROLE")
 	ignoredRoles := strings.Split(os.Getenv("IGNORED_ROLES"), ",")
 	specialRoles := strings.Split(os.Getenv("SPECIAL_ROLES"), ",")
@@ -57,16 +59,22 @@ func main() {
 	targetReminderChannelName := os.Getenv("TARGET_REMINDER_CHANNEL")
 	reminderDelays := getAndParseDelayMins("REMINDER_BEFORES")
 	reminderPrefix := buildReminderPrefix("REMINDER_TEXT", guildId)
-	roleChannelName := os.Getenv("ROLE_CHANNEL")
-	roleChannelCleaning := roleChannelName != ""
 
 	applyCmd := &discordgo.ApplicationCommand{
-		Name:        "apply-prefix",
-		Description: "Apply the prefix rule to all User",
+		Name:        strings.TrimSpace(os.Getenv("APPLY_CMD")),
+		Description: strings.TrimSpace(os.Getenv("DESCRIPTION_APPLY_CMD")),
 	}
 	cleanCmd := &discordgo.ApplicationCommand{
-		Name:        "clean-prefix",
-		Description: "Clean the prefix for all User",
+		Name:        strings.TrimSpace(os.Getenv("CLEAN_CMD")),
+		Description: strings.TrimSpace(os.Getenv("DESCRIPTION_CLEAN_CMD")),
+	}
+	resetCmd := &discordgo.ApplicationCommand{
+		Name:        strings.TrimSpace(os.Getenv("RESET_CMD")),
+		Description: strings.TrimSpace(os.Getenv("DESCRIPTION_RESET_CMD")),
+	}
+	countCmd := &discordgo.ApplicationCommand{
+		Name:        strings.TrimSpace(os.Getenv("COUNT_CMD")),
+		Description: strings.TrimSpace(os.Getenv("DESCRIPTION_COUNT_CMD")),
 	}
 
 	session, err := discordgo.New("Bot " + os.Getenv("BOT_TOKEN"))
@@ -97,7 +105,6 @@ func main() {
 		return
 	}
 
-	roleChannelId := ""
 	targetNewsChannelId := ""
 	targetReminderChannelId := ""
 	for _, channel := range guildChannels {
@@ -109,9 +116,6 @@ func main() {
 		if channelName == targetReminderChannelName {
 			targetReminderChannelId = channel.ID
 		}
-		if roleChannelCleaning && channelName == roleChannelName {
-			roleChannelId = channel.ID
-		}
 	}
 	if targetNewsChannelId == "" {
 		log.Println("Cannot retrieve the guild channel :", targetNewsChannelName)
@@ -121,18 +125,14 @@ func main() {
 		log.Println("Cannot retrieve the guild channel (2) :", targetReminderChannelName)
 		return
 	}
-	if roleChannelCleaning && roleChannelId == "" {
-		log.Println("Cannot retrieve the guild channel (3) :", roleChannelName)
-		return
-	}
 	// emptying data no longer useful for GC cleaning
 	guildChannels = nil
-	roleChannelName = ""
 	targetNewsChannelName = ""
 	targetReminderChannelName = ""
 
 	roleIdToPrefix := map[string]string{}
 	roleNameToId := map[string]string{}
+	roleIdToName := map[string]string{}
 	for _, guildRole := range guildRoles {
 		name := guildRole.Name
 		id := guildRole.ID
@@ -140,14 +140,32 @@ func main() {
 		if prefix, ok := roleNameToPrefix[name]; ok {
 			roleIdToPrefix[id] = prefix
 		}
+		roleIdToName[id] = name
 	}
 	// emptying data no longer useful for GC cleaning
 	roleNameToPrefix = nil
 	guildRoles = nil
 
-	cmdRoleIds := initSetId(cmdRoles, roleNameToId)
+	roleCmdDesc := strings.TrimSpace(os.Getenv("DESCRIPTION_ROLE_CMD")) + " "
+	roleCmds := make([]*discordgo.ApplicationCommand, 0, len(cmdToRoleName))
+	cmdToRoleId := map[string]string{}
+	for cmd, roleName := range cmdToRoleName {
+		roleCmds = append(roleCmds, &discordgo.ApplicationCommand{
+			Name:        cmd,
+			Description: roleCmdDesc + roleName,
+		})
+		cmdToRoleId[cmd] = roleNameToId[roleName]
+	}
 	// emptying data no longer useful for GC cleaning
-	cmdRoles = nil
+	cmdToRoleName = nil
+
+	authorizedRoleIds := initSetId(authorizedRoles, roleNameToId)
+	// emptying data no longer useful for GC cleaning
+	authorizedRoles = nil
+
+	forbiddenRoleIds := initSetId(forbiddenRoles, roleNameToId)
+	// emptying data no longer useful for GC cleaning
+	forbiddenRoles = nil
 
 	defaultRoleId := roleNameToId[defaultRole]
 	// emptying data no longer useful for GC cleaning
@@ -168,36 +186,57 @@ func main() {
 		return
 	}
 
-	if roleChannelCleaning {
-		initRoleChannelCleaning(session, guildMembers, roleChannelId, len(roleIdToPrefix))
-	}
-
 	var cmdworking boolAtom
-	counterError := applyPrefixes(session, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, roleIdToPrefix, prefixes, &cmdworking)
+	counterError := applyPrefixes(session, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, &cmdworking)
 	if counterError != 0 {
 		log.Println("Trying to apply-prefix at startup generate errors :", counterError)
 	}
 	// emptying data no longer useful for GC cleaning
 	guildMembers = nil
 
+	session.AddHandler(func(s *discordgo.Session, r *discordgo.GuildMemberAdd) {
+		s.GuildMemberRoleAdd(guildId, r.User.ID, defaultRoleId)
+	})
+
 	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
 		if userId := u.User.ID; userId != ownerId {
 			if !cmdworking.Get() {
-				applyPrefix(s, u.Member, u.GuildID, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, roleIdToPrefix, prefixes)
+				applyPrefix(s, u.Member, u.GuildID, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes)
 			}
 		}
 	})
 
-	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		switch i.ApplicationCommandData().Name {
-		case applyCmd.Name:
-			membersCmd(s, i.GuildID, roleIdInSet(i.Member.Roles, cmdRoleIds), okCmdMsg, errPartialCmdMsg, errGlobalCmdMsg, errUnauthorizedCmdMsg, i.Interaction, func(guildMembers []*discordgo.Member) int {
-				return applyPrefixes(s, guildMembers, i.GuildID, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, roleIdToPrefix, prefixes, &cmdworking)
+	execCmds := map[string]func(*discordgo.Session, *discordgo.InteractionCreate){
+		applyCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			membersCmd(s, i.GuildID, roleIdInSet(i.Member.Roles, authorizedRoleIds), okCmdMsg, errPartialCmdMsg, errGlobalCmdMsg, errUnauthorizedCmdMsg, i.Interaction, func(guildMembers []*discordgo.Member) int {
+				return applyPrefixes(s, guildMembers, i.GuildID, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, &cmdworking)
 			})
-		case cleanCmd.Name:
-			membersCmd(s, i.GuildID, roleIdInSet(i.Member.Roles, cmdRoleIds), okCmdMsg, errPartialCmdMsg, errGlobalCmdMsg, errUnauthorizedCmdMsg, i.Interaction, func(guildMembers []*discordgo.Member) int {
+		},
+		cleanCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			membersCmd(s, i.GuildID, roleIdInSet(i.Member.Roles, authorizedRoleIds), okCmdMsg, errPartialCmdMsg, errGlobalCmdMsg, errUnauthorizedCmdMsg, i.Interaction, func(guildMembers []*discordgo.Member) int {
 				return cleanPrefixes(s, guildMembers, i.GuildID, ownerId, prefixes, &cmdworking)
 			})
+		},
+		resetCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			addRoleCmd(s, i, ownerId, defaultRoleId, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, &cmdworking, okCmdMsg, errGlobalCmdMsg, errUnauthorizedCmdMsg)
+		},
+		countCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			countRoleCmd(s, i, roleIdToName, countCmdMsg, errGlobalCmdMsg)
+		},
+	}
+
+	for _, cmd := range roleCmds {
+		addedRoleId := cmdToRoleId[cmd.Name]
+		execCmds[cmd.Name] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			addRoleCmd(s, i, ownerId, addedRoleId, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, &cmdworking, okCmdMsg, errGlobalCmdMsg, errUnauthorizedCmdMsg)
+		}
+	}
+	// emptying data no longer useful for GC cleaning
+	cmdToRoleId = nil
+
+	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		if execCmd, ok := execCmds[i.ApplicationCommandData().Name]; ok {
+			execCmd(s, i)
 		}
 	})
 
@@ -206,10 +245,22 @@ func main() {
 	if err != nil {
 		log.Println("Cannot create apply command :", err)
 	}
-
 	cleanCmd, err = session.ApplicationCommandCreate(appId, guildId, cleanCmd)
 	if err != nil {
 		log.Println("Cannot create clean command :", err)
+	}
+	for index, cmd := range roleCmds {
+		if roleCmds[index], err = session.ApplicationCommandCreate(appId, guildId, cmd); err != nil {
+			log.Println("Cannot create", cmd.Name, "command :", err)
+		}
+	}
+	resetCmd, err = session.ApplicationCommandCreate(appId, guildId, resetCmd)
+	if err != nil {
+		log.Println("Cannot create reset command :", err)
+	}
+	countCmd, err = session.ApplicationCommandCreate(appId, guildId, countCmd)
+	if err != nil {
+		log.Println("Cannot create count command :", err)
 	}
 
 	messageSender := createMessageSender(session, targetNewsChannelId)
@@ -233,5 +284,16 @@ func main() {
 	}
 	if err = session.ApplicationCommandDelete(appId, guildId, cleanCmd.ID); err != nil {
 		log.Println("Cannot delete clean command :", err)
+	}
+	for _, cmd := range roleCmds {
+		if err = session.ApplicationCommandDelete(appId, guildId, cmd.ID); err != nil {
+			log.Println("Cannot delete", cmd.Name, "command :", err)
+		}
+	}
+	if err = session.ApplicationCommandDelete(appId, guildId, resetCmd.ID); err != nil {
+		log.Println("Cannot delete reset command :", err)
+	}
+	if err = session.ApplicationCommandDelete(appId, guildId, countCmd.ID); err != nil {
+		log.Println("Cannot delete count command :", err)
 	}
 }
