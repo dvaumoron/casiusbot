@@ -195,7 +195,9 @@ func main() {
 	guildMembers = nil
 
 	session.AddHandler(func(s *discordgo.Session, r *discordgo.GuildMemberAdd) {
-		s.GuildMemberRoleAdd(guildId, r.User.ID, defaultRoleId)
+		if err := s.GuildMemberRoleAdd(guildId, r.User.ID, defaultRoleId); err != nil {
+			log.Println("Role addition failed (3) :", err)
+		}
 	})
 
 	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
