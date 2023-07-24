@@ -1,2 +1,4 @@
-RoleName1=foo
-RoleName2=bar
+# /roleCmd will add the role RoleName1 to the user
+RoleName1:foo:roleCmd
+# RoleName2 must be set in discord to see the prefix added to users 
+RoleName2:bar

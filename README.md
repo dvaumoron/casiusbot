@@ -8,4 +8,4 @@ A [Discord](https://discord.com/) bot, with the following features :
 
 Optionally (when corresponding configuration is present) :
 - randomly change its game status
-- check regularly [RSS](https://www.rssboard.org/rss-specification) feeds and send messages with the links in a channel with the possibility to translate an extract.
+- check regularly [RSS](https://www.rssboard.org/rss-specification) feeds and send messages with the links in a channel (can filter link with [regexp](https://en.wikipedia.org/wiki/Regular_expression) or translate an extract (call [DeepL API](https://www.deepl.com/)))
