@@ -132,15 +132,21 @@ func main() {
 
 	roleIdToPrefix := map[string]string{}
 	roleNameToId := map[string]string{}
-	roleIdToName := map[string]string{}
+	roleIdToDisplayName := map[string]string{}
 	for _, guildRole := range guildRoles {
 		name := guildRole.Name
 		id := guildRole.ID
 		roleNameToId[name] = id
+		displayName := name
 		if prefix, ok := roleNameToPrefix[name]; ok {
 			roleIdToPrefix[id] = prefix
+			var buffer strings.Builder
+			buffer.WriteString(displayName)
+			buffer.WriteByte(' ')
+			buffer.WriteString(prefix)
+			displayName = buffer.String()
 		}
-		roleIdToName[id] = name
+		roleIdToDisplayName[id] = displayName
 	}
 	// emptying data no longer useful for GC cleaning
 	roleNameToPrefix = nil
@@ -227,7 +233,7 @@ func main() {
 			addRoleCmd(s, i, ownerId, defaultRoleId, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, &cmdworking, okCmdMsg, errGlobalCmdMsg, errUnauthorizedCmdMsg)
 		},
 		countCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			countRoleCmd(s, i, roleIdToName, countCmdMsg, errGlobalCmdMsg)
+			countRoleCmd(s, i, roleIdToDisplayName, countCmdMsg, errGlobalCmdMsg)
 		},
 	}
 
