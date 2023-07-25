@@ -1,4 +1,5 @@
 # /roleCmd will add the role RoleName1 to the user
 RoleName1:foo:roleCmd
-# RoleName2 must be set in discord to see the prefix added to users 
+# RoleName2 has no command associated, meaning that it is a special role which take precedence over the others
+# (it must be set within the discord interface to see the prefix added to users)
 RoleName2:bar

@@ -34,7 +34,7 @@ func main() {
 		log.Println("Loaded .env file")
 	}
 
-	roleNameToPrefix, prefixes, cmdToRoleName, err := readPrefixConfig("PREFIX_FILE_PATH")
+	roleNameToPrefix, prefixes, cmdToRoleName, specialRoles, err := readPrefixConfig("PREFIX_FILE_PATH")
 	if err != nil {
 		log.Fatalln("Cannot read the configuration file :", err)
 	}
@@ -48,9 +48,9 @@ func main() {
 	guildId := strings.TrimSpace(os.Getenv("GUILD_ID"))
 	authorizedRoles := strings.Split(os.Getenv("AUTHORIZED_ROLES"), ",")
 	forbiddenRoles := strings.Split(os.Getenv("FORBIDDEN_ROLES"), ",")
+	joiningRole := strings.TrimSpace(os.Getenv("JOINING_ROLE"))
 	defaultRole := strings.TrimSpace(os.Getenv("DEFAULT_ROLE"))
 	ignoredRoles := strings.Split(os.Getenv("IGNORED_ROLES"), ",")
-	specialRoles := strings.Split(os.Getenv("SPECIAL_ROLES"), ",")
 	gameList := getAndTrimSlice("GAME_LIST")
 	updateGameInterval := 30 * time.Second
 	targetNewsChannelName := strings.TrimSpace(os.Getenv("TARGET_NEWS_CHANNEL"))
@@ -167,6 +167,10 @@ func main() {
 	// emptying data no longer useful for GC cleaning
 	forbiddenRoles = nil
 
+	joiningRoleId := roleNameToId[joiningRole]
+	// emptying data no longer useful for GC cleaning
+	joiningRole = ""
+
 	defaultRoleId := roleNameToId[defaultRole]
 	// emptying data no longer useful for GC cleaning
 	defaultRole = ""
@@ -195,7 +199,7 @@ func main() {
 	guildMembers = nil
 
 	session.AddHandler(func(s *discordgo.Session, r *discordgo.GuildMemberAdd) {
-		if err := s.GuildMemberRoleAdd(guildId, r.User.ID, defaultRoleId); err != nil {
+		if err := s.GuildMemberRoleAdd(guildId, r.User.ID, joiningRoleId); err != nil {
 			log.Println("Role addition failed (3) :", err)
 		}
 	})

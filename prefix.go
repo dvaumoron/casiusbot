@@ -47,10 +47,10 @@ func (b *boolAtom) Set(newValue bool) {
 	b.value = newValue
 }
 
-func readPrefixConfig(filePathName string) (map[string]string, []string, map[string]string, error) {
+func readPrefixConfig(filePathName string) (map[string]string, []string, map[string]string, []string, error) {
 	file, err := os.Open(os.Getenv(filePathName))
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	defer file.Close()
 
@@ -58,6 +58,7 @@ func readPrefixConfig(filePathName string) (map[string]string, []string, map[str
 	nameToPrefix := map[string]string{}
 	prefixes := make([]string, 0)
 	cmdToName := map[string]string{}
+	specialRoles := make([]string, 0)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if len(line) != 0 && line[0] != '#' {
@@ -71,15 +72,17 @@ func readPrefixConfig(filePathName string) (map[string]string, []string, map[str
 
 				if splittedSize > 2 {
 					cmdToName[strings.TrimSpace(splitted[2])] = name
+				} else {
+					specialRoles = append(specialRoles, name)
 				}
 			}
 		}
 	}
 
 	if err = scanner.Err(); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
-	return nameToPrefix, prefixes, cmdToName, nil
+	return nameToPrefix, prefixes, cmdToName, specialRoles, nil
 }
 
 func membersCmd(s *discordgo.Session, guildId string, authorized bool, okCmdMsg string, errPartialCmdMsg string, errGlobalCmdMsg string, errUnauthorizedCmdMsg string, interaction *discordgo.Interaction, cmdEffect func([]*discordgo.Member) int) {
@@ -110,10 +113,7 @@ func transformName(nickName string, roleIds []string, defaultRoleId string, spec
 	for _, roleId := range roleIds {
 		if _, ok := forbiddenRoleIds[roleId]; ok {
 			// not adding prefix nor default role for user with forbidden role
-			nickName = cleanedNickName
-			hasDefault = true
-			hasPrefix = true
-			break
+			return cleanedNickName, true, true
 		}
 		if roleId == defaultRoleId {
 			hasDefault = true
