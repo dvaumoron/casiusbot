@@ -23,6 +23,7 @@ import (
 	"math/rand"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -32,25 +33,25 @@ import (
 
 type empty = struct{}
 
-func initSetId(names []string, nameToId map[string]string) map[string]empty {
-	setIds := map[string]empty{}
+func initIdSet(names []string, nameToId map[string]string) map[string]empty {
+	idSet := map[string]empty{}
 	for _, name := range names {
-		setIds[nameToId[strings.TrimSpace(name)]] = empty{}
+		idSet[nameToId[strings.TrimSpace(name)]] = empty{}
 	}
-	return setIds
+	return idSet
 }
 
-func roleIdInSet(roleIds []string, roleIdSet map[string]empty) bool {
-	for _, roleId := range roleIds {
-		if _, ok := roleIdSet[roleId]; ok {
+func idInSet(ids []string, idSet map[string]empty) bool {
+	for _, id := range ids {
+		if _, ok := idSet[id]; ok {
 			return true
 		}
 	}
 	return false
 }
 
-func getAndTrimSlice(valuesName string) []string {
-	values := os.Getenv(valuesName)
+func getAndTrimSlice(valuesConfName string) []string {
+	values := os.Getenv(valuesConfName)
 	if values == "" {
 		return nil
 	}
@@ -61,21 +62,21 @@ func getAndTrimSlice(valuesName string) []string {
 	return splitted
 }
 
-func getAndParseDurationSec(valueName string) time.Duration {
-	valueSec, err := strconv.ParseInt(os.Getenv(valueName), 10, 64)
+func getAndParseDurationSec(valueConfName string) time.Duration {
+	valueSec, err := strconv.ParseInt(os.Getenv(valueConfName), 10, 64)
 	if err != nil {
-		log.Println("Configuration", valueName, "parsing failed :", err)
+		log.Println("Configuration", valueConfName, "parsing failed :", err)
 	}
 	return time.Duration(valueSec) * time.Second
 }
 
-func getAndParseDelayMins(valuesName string) []time.Duration {
-	values := strings.Split(os.Getenv(valuesName), ",")
+func getAndParseDelayMins(valuesConfName string) []time.Duration {
+	values := strings.Split(os.Getenv(valuesConfName), ",")
 	delays := make([]time.Duration, 0, len(values))
 	for _, value := range values {
 		valueMin, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
-			log.Fatalln("Configuration", valuesName, "parsing failed :", err)
+			log.Fatalln("Configuration", valuesConfName, "parsing failed :", err)
 		}
 		delay := time.Duration(valueMin) * time.Minute
 		if delay > 0 {
@@ -86,6 +87,21 @@ func getAndParseDelayMins(valuesName string) []time.Duration {
 	return delays
 }
 
+func newCommand(cmdConfName string, cmdDescConfName string) *discordgo.ApplicationCommand {
+	return &discordgo.ApplicationCommand{
+		Name:        strings.TrimSpace(os.Getenv(cmdConfName)),
+		Description: strings.TrimSpace(os.Getenv(cmdDescConfName)),
+	}
+}
+
+func extractNick(member *discordgo.Member) string {
+	nickName := member.Nick
+	if nickName == "" {
+		nickName = member.User.Username
+	}
+	return nickName
+}
+
 func createMessageSender(session *discordgo.Session, channelId string) chan<- string {
 	messageChan := make(chan string)
 	go sendMessage(session, channelId, messageChan)
@@ -94,8 +110,7 @@ func createMessageSender(session *discordgo.Session, channelId string) chan<- st
 
 func sendMessage(session *discordgo.Session, channelId string, messageReceiver <-chan string) {
 	for message := range messageReceiver {
-		_, err := session.ChannelMessageSend(channelId, message)
-		if err != nil {
+		if _, err := session.ChannelMessageSend(channelId, message); err != nil {
 			log.Println("Message sending failed :", err)
 		}
 	}
@@ -156,4 +171,38 @@ func initChecker(checkRules []string, index int, checkRulesSize int) func(string
 
 func acceptAll(link string) bool {
 	return true
+}
+
+type nameValueSortByName [][2]string
+
+func (nps nameValueSortByName) Len() int {
+	return len(nps)
+}
+
+func (nps nameValueSortByName) Less(i, j int) bool {
+	return nps[i][0] < nps[j][0]
+}
+
+func (nps nameValueSortByName) Swap(i, j int) {
+	tmp := nps[i]
+	nps[i] = nps[j]
+	nps[j] = tmp
+}
+
+func buildMsgWithNameValueList(baseMsg string, nameToValue map[string]string) string {
+	nameValues := make([][2]string, 0, len(nameToValue))
+	for name, prefix := range nameToValue {
+		nameValues = append(nameValues, [2]string{name, prefix})
+	}
+	sort.Sort(nameValueSortByName(nameValues))
+
+	var buffer strings.Builder
+	buffer.WriteString(baseMsg)
+	for _, nameValue := range nameValues {
+		buffer.WriteByte('\n')
+		buffer.WriteString(nameValue[0])
+		buffer.WriteString(" = ")
+		buffer.WriteString(nameValue[1])
+	}
+	return buffer.String()
 }
