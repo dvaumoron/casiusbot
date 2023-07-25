@@ -218,32 +218,30 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, ownerId st
 	roleIds := i.Member.Roles
 	if roleIdInSet(roleIds, forbiddenRoleIds) {
 		returnMsg = errUnauthorizedCmdMsg
-	} else {
-		if userId := i.User.ID; userId != ownerId && !cmdworking.Get() {
-			if cleanPrefix(s, i.Member, guildId, ownerId, prefixes) == 0 {
-				removed := false
-				for _, roleId := range roleIds {
-					if _, ok := roleIdToPrefix[roleId]; ok {
-						if _, ok := specialRoleIds[roleId]; !ok {
-							if err := s.GuildMemberRoleRemove(guildId, userId, roleId); err == nil {
-								removed = true
-							} else {
-								log.Println("Role removing failed (2) :", err)
-								returnMsg = errGlobalCmdMsg
-							}
+	} else if userId := i.Member.User.ID; userId != ownerId && !cmdworking.Get() {
+		if cleanPrefix(s, i.Member, guildId, ownerId, prefixes) == 0 {
+			removed := false
+			for _, roleId := range roleIds {
+				if _, ok := roleIdToPrefix[roleId]; ok {
+					if _, ok := specialRoleIds[roleId]; !ok {
+						if err := s.GuildMemberRoleRemove(guildId, userId, roleId); err == nil {
+							removed = true
+						} else {
+							log.Println("Role removing failed (2) :", err)
+							returnMsg = errGlobalCmdMsg
 						}
 					}
 				}
-
-				if removed {
-					if err := s.GuildMemberRoleAdd(guildId, userId, addedRoleId); err != nil {
-						log.Println("Role addition failed (2) :", err)
-						returnMsg = errGlobalCmdMsg
-					}
-				}
-			} else {
-				returnMsg = errGlobalCmdMsg
 			}
+
+			if removed {
+				if err := s.GuildMemberRoleAdd(guildId, userId, addedRoleId); err != nil {
+					log.Println("Role addition failed (2) :", err)
+					returnMsg = errGlobalCmdMsg
+				}
+			}
+		} else {
+			returnMsg = errGlobalCmdMsg
 		}
 	}
 
@@ -253,7 +251,7 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, ownerId st
 	})
 }
 
-func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, roleIdToName map[string]string, countMsg string, errGlobalCmdMsg string) {
+func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, roleIdToDisplayName map[string]string, countMsg string, errGlobalCmdMsg string) {
 	returnMsg := errGlobalCmdMsg
 	if guildMembers, err := s.GuildMembers(i.GuildID, "", 1000); err == nil {
 		roleIdToCount := map[string]int{}
@@ -264,7 +262,7 @@ func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, roleIdTo
 		}
 		roleNameToCountStr := map[string]string{}
 		for roleId, count := range roleIdToCount {
-			roleNameToCountStr[roleIdToName[roleId]] = strconv.Itoa(count)
+			roleNameToCountStr[roleIdToDisplayName[roleId]] = strconv.Itoa(count)
 		}
 		returnMsg = buildMsgWithNameValueList(countMsg, roleNameToCountStr)
 	}
