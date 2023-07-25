@@ -219,32 +219,28 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, ownerId st
 	if roleIdInSet(roleIds, forbiddenRoleIds) {
 		returnMsg = errUnauthorizedCmdMsg
 	} else if userId := i.Member.User.ID; userId != ownerId && !cmdworking.Get() {
-		if cleanPrefix(s, i.Member, guildId, ownerId, prefixes) == 0 {
-			removed := true
-			for _, roleId := range roleIds {
-				if roleId == addedRoleId {
-					removed = false
-					continue
-				}
+		removed := true
+		for _, roleId := range roleIds {
+			if roleId == addedRoleId {
+				removed = false
+				continue
+			}
 
-				if _, ok := roleIdToPrefix[roleId]; ok {
-					if _, ok := specialRoleIds[roleId]; !ok {
-						if err := s.GuildMemberRoleRemove(guildId, userId, roleId); err != nil {
-							log.Println("Role removing failed (2) :", err)
-							returnMsg = errGlobalCmdMsg
-						}
+			if _, ok := roleIdToPrefix[roleId]; ok {
+				if _, ok := specialRoleIds[roleId]; !ok {
+					if err := s.GuildMemberRoleRemove(guildId, userId, roleId); err != nil {
+						log.Println("Role removing failed (2) :", err)
+						returnMsg = errGlobalCmdMsg
 					}
 				}
 			}
+		}
 
-			if removed {
-				if err := s.GuildMemberRoleAdd(guildId, userId, addedRoleId); err != nil {
-					log.Println("Role addition failed (2) :", err)
-					returnMsg = errGlobalCmdMsg
-				}
+		if removed {
+			if err := s.GuildMemberRoleAdd(guildId, userId, addedRoleId); err != nil {
+				log.Println("Role addition failed (2) :", err)
+				returnMsg = errGlobalCmdMsg
 			}
-		} else {
-			returnMsg = errGlobalCmdMsg
 		}
 	}
 
