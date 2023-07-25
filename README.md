@@ -5,6 +5,7 @@ A [Discord](https://discord.com/) bot, with the following features :
 - add a default role to user without any prefix role (except for user with forbidden roles)
 - add a role on joining user (could be the default or a forbidden role)
 - add a set of command allowing user to choose a prefix role and one to reset to default role (those command does not work for user with forbidden roles)
+- add a command to display a count of users by role 
 - post reminder messages for scheduled events
 
 Optionally (when corresponding configuration is present) :
