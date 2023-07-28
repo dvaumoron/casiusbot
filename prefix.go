@@ -62,17 +62,19 @@ func readPrefixConfig(filePathName string) (map[string]string, []string, map[str
 		line := strings.TrimSpace(scanner.Text())
 		if len(line) != 0 && line[0] != '#' {
 			splitted := strings.Split(line, ":")
-			name := strings.TrimSpace(splitted[0])
-			if splittedSize := len(splitted); splittedSize > 1 && name != "" {
-				prefix := strings.TrimSpace(splitted[1]) + " "
+			if splittedSize := len(splitted); splittedSize > 1 {
+				name := strings.TrimSpace(splitted[0])
+				if name != "" {
+					prefix := strings.TrimSpace(splitted[1]) + " "
 
-				nameToPrefix[name] = prefix
-				prefixes = append(prefixes, prefix)
+					nameToPrefix[name] = prefix
+					prefixes = append(prefixes, prefix)
 
-				if splittedSize > 2 {
-					cmdToName[strings.TrimSpace(splitted[2])] = name
-				} else {
-					specialRoles = append(specialRoles, name)
+					if splittedSize > 2 {
+						cmdToName[strings.TrimSpace(splitted[2])] = name
+					} else {
+						specialRoles = append(specialRoles, name)
+					}
 				}
 			}
 		}
