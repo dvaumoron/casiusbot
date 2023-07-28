@@ -60,7 +60,7 @@ func readPrefixConfig(filePathName string) (map[string]string, []string, map[str
 	specialRoles := make([]string, 0)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if len(line) != 0 && line[0] != '#' {
+		if line != "" && line[0] != '#' {
 			splitted := strings.Split(line, ":")
 			if splittedSize := len(splitted); splittedSize > 1 {
 				name := strings.TrimSpace(splitted[0])
