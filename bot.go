@@ -40,6 +40,7 @@ func main() {
 	}
 
 	okCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_OK"))
+	runningCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_RUNNING"))
 	endedCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_ENDED"))
 	errPartialCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_PARTIAL_ERROR")) + " "
 	errGlobalCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_GLOBAL_ERROR"))
@@ -47,7 +48,7 @@ func main() {
 	countCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_COUNT"))
 	prefixMsg := strings.TrimSpace(os.Getenv("MESSAGE_PREFIX"))
 	noChangeMsg := strings.TrimSpace(os.Getenv("MESSAGE_NO_CHANGE"))
-	msgs := [...]string{okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg, prefixMsg, noChangeMsg, endedCmdMsg}
+	msgs := [...]string{okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg, prefixMsg, noChangeMsg, endedCmdMsg, runningCmdMsg}
 
 	guildId := strings.TrimSpace(os.Getenv("GUILD_ID"))
 	authorizedRoles := strings.Split(os.Getenv("AUTHORIZED_ROLES"), ",")
@@ -249,10 +250,10 @@ func main() {
 			})
 		},
 		resetCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			addRoleCmd(s, i, prefixChannelSender, ownerId, defaultRoleId, defaultRoleDisplayName, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, &cmdMonitor, msgs)
+			addRoleCmd(s, i, ownerId, defaultRoleId, defaultRoleDisplayName, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, &cmdMonitor, msgs)
 		},
 		countCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			countRoleCmd(s, i, prefixChannelSender, roleIdToDisplayName, msgs)
+			countRoleCmd(s, i, roleIdToDisplayName, msgs)
 		},
 	}
 
@@ -260,7 +261,7 @@ func main() {
 		addedRoleId := cmdToRoleId[cmd.Name]
 		addedRoleDisplayName := roleIdToDisplayName[addedRoleId]
 		execCmds[cmd.Name] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			addRoleCmd(s, i, prefixChannelSender, ownerId, addedRoleId, addedRoleDisplayName, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, &cmdMonitor, msgs)
+			addRoleCmd(s, i, ownerId, addedRoleId, addedRoleDisplayName, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, &cmdMonitor, msgs)
 		}
 	}
 	// emptying data no longer useful for GC cleaning

@@ -96,11 +96,13 @@ func readPrefixConfig(filePathName string) (map[string]string, []string, map[str
 	return nameToPrefix, prefixes, cmdToName, specialRoles, nil
 }
 
-func membersCmd(s *discordgo.Session, messageSender chan<- string, cmdName string, guildId string, authorized bool, msgs [8]string, interaction *discordgo.Interaction, cmdMonitor *Monitor, cmdEffect func([]*discordgo.Member) int) {
+func membersCmd(s *discordgo.Session, messageSender chan<- string, cmdName string, guildId string, authorized bool, msgs [9]string, interaction *discordgo.Interaction, cmdMonitor *Monitor, cmdEffect func([]*discordgo.Member) int) {
 	returnMsg := msgs[0]
 	if authorized {
 		if cmdMonitor.Start() {
 			go processMembers(s, messageSender, cmdName, guildId, msgs, cmdMonitor, cmdEffect)
+		} else {
+			returnMsg = msgs[8]
 		}
 	} else {
 		returnMsg = msgs[1]
@@ -112,7 +114,7 @@ func membersCmd(s *discordgo.Session, messageSender chan<- string, cmdName strin
 	})
 }
 
-func processMembers(s *discordgo.Session, messageSender chan<- string, cmdName string, guildId string, msgs [8]string, cmdMonitor *Monitor, cmdEffect func([]*discordgo.Member) int) {
+func processMembers(s *discordgo.Session, messageSender chan<- string, cmdName string, guildId string, msgs [9]string, cmdMonitor *Monitor, cmdEffect func([]*discordgo.Member) int) {
 	defer cmdMonitor.Stop()
 	msg := msgs[2]
 	if guildMembers, err := s.GuildMembers(guildId, "", 1000); err == nil {
@@ -161,7 +163,7 @@ func cleanPrefixInNick(nick string, prefixes []string) string {
 	return nick
 }
 
-func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, guildId string, ownerId string, defaultRoleId string, ignoredRoleIds map[string]empty, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, prefixes []string, msgs [8]string) int {
+func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, guildId string, ownerId string, defaultRoleId string, ignoredRoleIds map[string]empty, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, prefixes []string, msgs [9]string) int {
 	counterError := 0
 	for _, guildMember := range guildMembers {
 		counterError += applyPrefix(s, nil, guildMember, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
@@ -169,7 +171,7 @@ func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, guild
 	return counterError
 }
 
-func applyPrefix(s *discordgo.Session, messageSender chan<- string, guildMember *discordgo.Member, guildId string, ownerId string, defaultRoleId string, ignoredRoleIds map[string]empty, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, prefixes []string, msgs [8]string) int {
+func applyPrefix(s *discordgo.Session, messageSender chan<- string, guildMember *discordgo.Member, guildId string, ownerId string, defaultRoleId string, ignoredRoleIds map[string]empty, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, prefixes []string, msgs [9]string) int {
 	counterError := 0
 	userId := guildMember.User.ID
 	roleIds := guildMember.Roles

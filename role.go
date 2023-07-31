@@ -26,11 +26,12 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- string, ownerId string, addedRoleId string, addedRoleDisplayName string, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, cmdMonitor *Monitor, msgs [8]string) {
+func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, ownerId string, addedRoleId string, addedRoleDisplayName string, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, cmdMonitor *Monitor, msgs [9]string) {
 	guildId := i.GuildID
 	roleIds := i.Member.Roles
+	returnMsg := msgs[0]
 	if idInSet(roleIds, forbiddenRoleIds) {
-		messageSender <- msgs[1]
+		returnMsg = msgs[1]
 	} else if userId := i.Member.User.ID; userId != ownerId && !cmdMonitor.Running() {
 		toAdd := true
 		for _, roleId := range roleIds {
@@ -43,7 +44,7 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSen
 				if _, ok := specialRoleIds[roleId]; !ok {
 					if err := s.GuildMemberRoleRemove(guildId, userId, roleId); err != nil {
 						log.Println("Prefix role removing failed :", err)
-						messageSender <- msgs[2]
+						returnMsg = msgs[2]
 					}
 				}
 			}
@@ -52,17 +53,23 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSen
 		if toAdd {
 			if err := s.GuildMemberRoleAdd(guildId, userId, addedRoleId); err != nil {
 				log.Println("Prefix role addition failed :", err)
-				messageSender <- msgs[2]
+				returnMsg = msgs[2]
 			}
 		} else {
 			msg := strings.ReplaceAll(msgs[6], "{{user}}", i.Member.Nick)
 			msg = strings.ReplaceAll(msg, "{{role}}", addedRoleDisplayName)
-			messageSender <- msg
+			returnMsg = msg
 		}
 	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Content: returnMsg},
+	})
 }
 
-func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- string, roleIdToDisplayName map[string]string, msgs [8]string) {
+func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, roleIdToDisplayName map[string]string, msgs [9]string) {
+	returnMsg := msgs[2]
 	if guildMembers, err := s.GuildMembers(i.GuildID, "", 1000); err == nil {
 		roleIdToCount := map[string]int{}
 		for _, guildMember := range guildMembers {
@@ -74,9 +81,13 @@ func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageS
 		for roleId, count := range roleIdToCount {
 			roleNameToCountStr[roleIdToDisplayName[roleId]] = strconv.Itoa(count)
 		}
-		messageSender <- buildMsgWithNameValueList(msgs[4], roleNameToCountStr)
+		returnMsg = buildMsgWithNameValueList(msgs[4], roleNameToCountStr)
 	} else {
 		log.Println("Members retrieving failed (2) :", err)
-		messageSender <- msgs[2]
 	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Content: returnMsg},
+	})
 }
