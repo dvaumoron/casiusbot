@@ -33,6 +33,14 @@ import (
 
 type empty = struct{}
 
+type ChannelSenderManager map[string]chan<- string
+
+func (m ChannelSenderManager) AddChannel(session *discordgo.Session, channelId string) {
+	if _, ok := m[channelId]; !ok {
+		m[channelId] = createMessageSender(session, channelId)
+	}
+}
+
 func initIdSet(names []string, nameToId map[string]string) map[string]empty {
 	idSet := map[string]empty{}
 	for _, name := range names {

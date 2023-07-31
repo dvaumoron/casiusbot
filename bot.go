@@ -44,7 +44,9 @@ func main() {
 	errGlobalCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_GLOBAL_ERROR"))
 	errUnauthorizedCmdMsg := buildMsgWithNameValueList(strings.TrimSpace(os.Getenv("MESSAGE_CMD_UNAUTHORIZED")), roleNameToPrefix)
 	countCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_COUNT"))
-	msgs := [...]string{okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg}
+	prefixMsg := strings.TrimSpace(os.Getenv("MESSAGE_PREFIX"))
+	noChangeMsg := strings.TrimSpace(os.Getenv("MESSAGE_NO_CHANGE"))
+	msgs := [...]string{okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg, prefixMsg, noChangeMsg}
 
 	guildId := strings.TrimSpace(os.Getenv("GUILD_ID"))
 	authorizedRoles := strings.Split(os.Getenv("AUTHORIZED_ROLES"), ",")
@@ -54,6 +56,7 @@ func main() {
 	ignoredRoles := strings.Split(os.Getenv("IGNORED_ROLES"), ",")
 	gameList := getAndTrimSlice("GAME_LIST")
 	updateGameInterval := 30 * time.Second
+	targetPrefixChannelName := strings.TrimSpace(os.Getenv("TARGET_PREFIX_CHANNEL"))
 	targetNewsChannelName := strings.TrimSpace(os.Getenv("TARGET_NEWS_CHANNEL"))
 	feedURLs := getAndTrimSlice("FEED_URLS")
 	checkInterval := getAndParseDurationSec("CHECK_INTERVAL")
@@ -94,14 +97,18 @@ func main() {
 		return
 	}
 
+	targetPrefixChannelId := ""
 	targetNewsChannelId := ""
 	targetReminderChannelId := ""
 	for _, channel := range guildChannels {
+		// multiple if with no else statement (could be the same channel)
 		channelName := channel.Name
+		if channelName == targetPrefixChannelName {
+			targetPrefixChannelId = channel.ID
+		}
 		if channelName == targetNewsChannelName {
 			targetNewsChannelId = channel.ID
 		}
-		// not in else statement (could be the same channel)
 		if channelName == targetReminderChannelName {
 			targetReminderChannelId = channel.ID
 		}
@@ -116,6 +123,7 @@ func main() {
 	}
 	// emptying data no longer useful for GC cleaning
 	guildChannels = nil
+	targetPrefixChannelName = ""
 	targetNewsChannelName = ""
 	targetReminderChannelName = ""
 
@@ -130,7 +138,7 @@ func main() {
 		if prefix, ok := roleNameToPrefix[name]; ok {
 			roleIdToPrefix[id] = prefix
 			var buffer strings.Builder
-			buffer.WriteString(displayName)
+			buffer.WriteString(name)
 			buffer.WriteByte(' ')
 			buffer.WriteString(prefix)
 			displayName = buffer.String()
@@ -205,6 +213,13 @@ func main() {
 		}
 	})
 
+	channelManager := ChannelSenderManager{}
+	channelManager.AddChannel(session, targetPrefixChannelId)
+	channelManager.AddChannel(session, targetNewsChannelId)
+	channelManager.AddChannel(session, targetReminderChannelId)
+
+	prefixChannelSender := channelManager[targetPrefixChannelId]
+	defaultRoleDisplayName := roleIdToDisplayName[defaultRoleId]
 	execCmds := map[string]func(*discordgo.Session, *discordgo.InteractionCreate){
 		applyCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			guildId := i.GuildID
@@ -219,17 +234,18 @@ func main() {
 			})
 		},
 		resetCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			addRoleCmd(s, i, ownerId, defaultRoleId, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, &cmdworking, msgs)
+			addRoleCmd(s, i, prefixChannelSender, ownerId, defaultRoleId, defaultRoleDisplayName, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, &cmdworking, msgs)
 		},
 		countCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			countRoleCmd(s, i, roleIdToDisplayName, msgs)
+			countRoleCmd(s, i, prefixChannelSender, roleIdToDisplayName, msgs)
 		},
 	}
 
 	for _, cmd := range roleCmds {
 		addedRoleId := cmdToRoleId[cmd.Name]
+		addedRoleDisplayName := roleIdToDisplayName[addedRoleId]
 		execCmds[cmd.Name] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			addRoleCmd(s, i, ownerId, addedRoleId, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, &cmdworking, msgs)
+			addRoleCmd(s, i, prefixChannelSender, ownerId, addedRoleId, addedRoleDisplayName, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, &cmdworking, msgs)
 		}
 	}
 	// emptying data no longer useful for GC cleaning
@@ -270,8 +286,8 @@ func main() {
 	tickers := launchTickers(feedNumber+1, checkInterval)
 
 	startTime := time.Now().Add(-checkInterval).Add(-getAndParseDurationSec("INITIAL_BACKWARD_LOADING"))
-	bgReadMultipleRSS(createMessageSender(session, targetNewsChannelId), feedURLs, startTime, tickers)
-	go remindEvent(session, guildId, reminderDelays, targetReminderChannelId, reminderPrefix, startTime, tickers[feedNumber])
+	bgReadMultipleRSS(channelManager[targetNewsChannelId], feedURLs, startTime, tickers)
+	go remindEvent(session, guildId, reminderDelays, channelManager[targetReminderChannelId], reminderPrefix, startTime, tickers[feedNumber])
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)

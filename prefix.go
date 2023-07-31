@@ -86,7 +86,7 @@ func readPrefixConfig(filePathName string) (map[string]string, []string, map[str
 	return nameToPrefix, prefixes, cmdToName, specialRoles, nil
 }
 
-func membersCmd(s *discordgo.Session, guildId string, authorized bool, msgs [5]string, interaction *discordgo.Interaction, cmdEffect func([]*discordgo.Member) int) {
+func membersCmd(s *discordgo.Session, guildId string, authorized bool, msgs [7]string, interaction *discordgo.Interaction, cmdEffect func([]*discordgo.Member) int) {
 	returnMsg := msgs[0]
 	if authorized {
 		if guildMembers, err := s.GuildMembers(guildId, "", 1000); err == nil {

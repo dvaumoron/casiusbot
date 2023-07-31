@@ -36,7 +36,7 @@ func buildReminderPrefix(reminderConfName string, guildId string) string {
 	return reminderBuilder.String()
 }
 
-func remindEvent(session *discordgo.Session, guildId string, delays []time.Duration, channelId string, reminderPrefix string, previous time.Time, ticker <-chan time.Time) {
+func remindEvent(session *discordgo.Session, guildId string, delays []time.Duration, messageSender chan<- string, reminderPrefix string, previous time.Time, ticker <-chan time.Time) {
 	for current := range ticker {
 		events, err := session.GuildScheduledEvents(guildId, false)
 		if err != nil {
@@ -50,10 +50,7 @@ func remindEvent(session *discordgo.Session, guildId string, delays []time.Durat
 				// delay  is already negative
 				reminderTime := eventStartTime.Add(delay)
 				if reminderTime.After(previous) && reminderTime.Before(current) {
-					message := reminderPrefix + event.ID
-					if _, err = session.ChannelMessageSend(channelId, message); err != nil {
-						log.Println("Message sending failed (2) :", err)
-					}
+					messageSender <- reminderPrefix + event.ID
 					// don't test other delay
 					break
 				}
