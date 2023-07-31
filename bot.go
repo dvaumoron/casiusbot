@@ -40,13 +40,14 @@ func main() {
 	}
 
 	okCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_OK"))
+	endedCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_ENDED"))
 	errPartialCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_PARTIAL_ERROR")) + " "
 	errGlobalCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_GLOBAL_ERROR"))
 	errUnauthorizedCmdMsg := buildMsgWithNameValueList(strings.TrimSpace(os.Getenv("MESSAGE_CMD_UNAUTHORIZED")), roleNameToPrefix)
 	countCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_COUNT"))
 	prefixMsg := strings.TrimSpace(os.Getenv("MESSAGE_PREFIX"))
 	noChangeMsg := strings.TrimSpace(os.Getenv("MESSAGE_NO_CHANGE"))
-	msgs := [...]string{okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg, prefixMsg, noChangeMsg}
+	msgs := [...]string{okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg, prefixMsg, noChangeMsg, endedCmdMsg}
 
 	guildId := strings.TrimSpace(os.Getenv("GUILD_ID"))
 	authorizedRoles := strings.Split(os.Getenv("AUTHORIZED_ROLES"), ",")
@@ -57,6 +58,7 @@ func main() {
 	gameList := getAndTrimSlice("GAME_LIST")
 	updateGameInterval := 30 * time.Second
 	targetPrefixChannelName := strings.TrimSpace(os.Getenv("TARGET_PREFIX_CHANNEL"))
+	targetCmdChannelName := strings.TrimSpace(os.Getenv("TARGET_CMD_CHANNEL"))
 	targetNewsChannelName := strings.TrimSpace(os.Getenv("TARGET_NEWS_CHANNEL"))
 	feedURLs := getAndTrimSlice("FEED_URLS")
 	checkInterval := getAndParseDurationSec("CHECK_INTERVAL")
@@ -98,6 +100,7 @@ func main() {
 	}
 
 	targetPrefixChannelId := ""
+	targetCmdChannelId := ""
 	targetNewsChannelId := ""
 	targetReminderChannelId := ""
 	for _, channel := range guildChannels {
@@ -105,6 +108,9 @@ func main() {
 		channelName := channel.Name
 		if channelName == targetPrefixChannelName {
 			targetPrefixChannelId = channel.ID
+		}
+		if channelName == targetCmdChannelName {
+			targetCmdChannelId = channel.ID
 		}
 		if channelName == targetNewsChannelName {
 			targetNewsChannelId = channel.ID
@@ -121,13 +127,18 @@ func main() {
 		log.Println("Cannot retrieve the guild channel (2) :", targetReminderChannelName)
 		return // to allow defer
 	}
-	if targetPrefixChannelName == "" {
+	if targetPrefixChannelId == "" {
 		log.Println("Cannot retrieve the guild channel (3) :", targetPrefixChannelName)
+		return // to allow defer
+	}
+	if targetCmdChannelId == "" {
+		log.Println("Cannot retrieve the guild channel (4) :", targetCmdChannelName)
 		return // to allow defer
 	}
 	// emptying data no longer useful for GC cleaning
 	guildChannels = nil
 	targetPrefixChannelName = ""
+	targetCmdChannelName = ""
 	targetNewsChannelName = ""
 	targetReminderChannelName = ""
 
@@ -199,12 +210,14 @@ func main() {
 
 	channelManager := ChannelSenderManager{}
 	channelManager.AddChannel(session, targetPrefixChannelId)
+	channelManager.AddChannel(session, targetCmdChannelId)
 	channelManager.AddChannel(session, targetNewsChannelId)
 	channelManager.AddChannel(session, targetReminderChannelId)
 	prefixChannelSender := channelManager[targetPrefixChannelId]
+	cmdChannelSender := channelManager[targetCmdChannelId]
 
-	var cmdworking boolAtom
-	counterError := applyPrefixes(session, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs, &cmdworking)
+	var cmdMonitor Monitor
+	counterError := applyPrefixes(session, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
 	if counterError != 0 {
 		log.Println("Trying to apply-prefix at startup generate errors :", counterError)
 	}
@@ -218,7 +231,7 @@ func main() {
 	})
 
 	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
-		if userId := u.User.ID; userId != ownerId && !cmdworking.Get() {
+		if userId := u.User.ID; userId != ownerId && !cmdMonitor.Running() {
 			applyPrefix(s, prefixChannelSender, u.Member, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
 		}
 	})
@@ -226,19 +239,17 @@ func main() {
 	defaultRoleDisplayName := roleIdToDisplayName[defaultRoleId]
 	execCmds := map[string]func(*discordgo.Session, *discordgo.InteractionCreate){
 		applyCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			guildId := i.GuildID
-			membersCmd(s, guildId, idInSet(i.Member.Roles, authorizedRoleIds), msgs, i.Interaction, func(guildMembers []*discordgo.Member) int {
-				return applyPrefixes(s, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs, &cmdworking)
+			membersCmd(s, cmdChannelSender, applyCmd.Name, guildId, idInSet(i.Member.Roles, authorizedRoleIds), msgs, i.Interaction, &cmdMonitor, func(guildMembers []*discordgo.Member) int {
+				return applyPrefixes(s, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
 			})
 		},
 		cleanCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			guildId := i.GuildID
-			membersCmd(s, guildId, idInSet(i.Member.Roles, authorizedRoleIds), msgs, i.Interaction, func(guildMembers []*discordgo.Member) int {
-				return cleanPrefixes(s, guildMembers, guildId, ownerId, prefixes, &cmdworking)
+			membersCmd(s, cmdChannelSender, cleanCmd.Name, guildId, idInSet(i.Member.Roles, authorizedRoleIds), msgs, i.Interaction, &cmdMonitor, func(guildMembers []*discordgo.Member) int {
+				return cleanPrefixes(s, guildMembers, guildId, ownerId, prefixes)
 			})
 		},
 		resetCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			addRoleCmd(s, i, prefixChannelSender, ownerId, defaultRoleId, defaultRoleDisplayName, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, &cmdworking, msgs)
+			addRoleCmd(s, i, prefixChannelSender, ownerId, defaultRoleId, defaultRoleDisplayName, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, &cmdMonitor, msgs)
 		},
 		countCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			countRoleCmd(s, i, prefixChannelSender, roleIdToDisplayName, msgs)
@@ -249,7 +260,7 @@ func main() {
 		addedRoleId := cmdToRoleId[cmd.Name]
 		addedRoleDisplayName := roleIdToDisplayName[addedRoleId]
 		execCmds[cmd.Name] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			addRoleCmd(s, i, prefixChannelSender, ownerId, addedRoleId, addedRoleDisplayName, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, &cmdworking, msgs)
+			addRoleCmd(s, i, prefixChannelSender, ownerId, addedRoleId, addedRoleDisplayName, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, &cmdMonitor, msgs)
 		}
 	}
 	// emptying data no longer useful for GC cleaning

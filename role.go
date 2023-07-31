@@ -26,12 +26,12 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- string, ownerId string, addedRoleId string, addedRoleDisplayName string, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, cmdworking *boolAtom, msgs [7]string) {
+func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- string, ownerId string, addedRoleId string, addedRoleDisplayName string, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, cmdMonitor *Monitor, msgs [8]string) {
 	guildId := i.GuildID
 	roleIds := i.Member.Roles
 	if idInSet(roleIds, forbiddenRoleIds) {
 		messageSender <- msgs[1]
-	} else if userId := i.Member.User.ID; userId != ownerId && !cmdworking.Get() {
+	} else if userId := i.Member.User.ID; userId != ownerId && !cmdMonitor.Running() {
 		toAdd := true
 		for _, roleId := range roleIds {
 			if roleId == addedRoleId {
@@ -62,7 +62,7 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSen
 	}
 }
 
-func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- string, roleIdToDisplayName map[string]string, msgs [7]string) {
+func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- string, roleIdToDisplayName map[string]string, msgs [8]string) {
 	if guildMembers, err := s.GuildMembers(i.GuildID, "", 1000); err == nil {
 		roleIdToCount := map[string]int{}
 		for _, guildMember := range guildMembers {
