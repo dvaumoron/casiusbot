@@ -68,18 +68,26 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, ownerId st
 	})
 }
 
-func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, roleIdToDisplayName map[string]string, msgs [9]string) {
+func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, roleIdToDisplayName map[string]string, roleIdToPrefix map[string]string, filter bool, msgs [9]string) {
 	returnMsg := msgs[2]
 	if guildMembers, err := s.GuildMembers(i.GuildID, "", 1000); err == nil {
 		roleIdToCount := map[string]int{}
 		for _, guildMember := range guildMembers {
 			for _, roleId := range guildMember.Roles {
+				if filter {
+					if _, ok := roleIdToPrefix[roleId]; !ok {
+						continue
+					}
+				}
 				roleIdToCount[roleId]++
 			}
+
 		}
 		roleNameToCountStr := map[string]string{}
 		for roleId, count := range roleIdToCount {
+
 			roleNameToCountStr[roleIdToDisplayName[roleId]] = strconv.Itoa(count)
+
 		}
 		returnMsg = buildMsgWithNameValueList(msgs[4], roleNameToCountStr)
 	} else {

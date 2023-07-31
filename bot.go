@@ -66,6 +66,7 @@ func main() {
 	targetReminderChannelName := strings.TrimSpace(os.Getenv("TARGET_REMINDER_CHANNEL"))
 	reminderDelays := getAndParseDelayMins("REMINDER_BEFORES")
 	reminderPrefix := buildReminderPrefix("REMINDER_TEXT", guildId)
+	countFilter := strings.TrimSpace(os.Getenv("COUNT_FILTER")) != ""
 
 	applyCmd := newCommand("APPLY_CMD", "DESCRIPTION_APPLY_CMD")
 	cleanCmd := newCommand("CLEAN_CMD", "DESCRIPTION_CLEAN_CMD")
@@ -253,7 +254,7 @@ func main() {
 			addRoleCmd(s, i, ownerId, defaultRoleId, defaultRoleDisplayName, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, &cmdMonitor, msgs)
 		},
 		countCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			countRoleCmd(s, i, roleIdToDisplayName, msgs)
+			countRoleCmd(s, i, roleIdToDisplayName, roleIdToPrefix, countFilter, msgs)
 		},
 	}
 
