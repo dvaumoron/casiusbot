@@ -141,17 +141,17 @@ func cleanPrefixInNick(nick string, prefixes []string) string {
 	return nick
 }
 
-func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, guildId string, ownerId string, defaultRoleId string, ignoredRoleIds map[string]empty, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, prefixes []string, cmdworking *boolAtom) int {
+func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, guildId string, ownerId string, defaultRoleId string, ignoredRoleIds map[string]empty, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, prefixes []string, msgs [7]string, cmdworking *boolAtom) int {
 	counterError := 0
 	cmdworking.Set(true)
 	for _, guildMember := range guildMembers {
-		counterError += applyPrefix(s, guildMember, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes)
+		counterError += applyPrefix(s, nil, guildMember, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
 	}
 	cmdworking.Set(false)
 	return counterError
 }
 
-func applyPrefix(s *discordgo.Session, guildMember *discordgo.Member, guildId string, ownerId string, defaultRoleId string, ignoredRoleIds map[string]empty, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, prefixes []string) int {
+func applyPrefix(s *discordgo.Session, messageSender chan<- string, guildMember *discordgo.Member, guildId string, ownerId string, defaultRoleId string, ignoredRoleIds map[string]empty, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, prefixes []string, msgs [7]string) int {
 	counterError := 0
 	userId := guildMember.User.ID
 	roleIds := guildMember.Roles
@@ -172,7 +172,13 @@ func applyPrefix(s *discordgo.Session, guildMember *discordgo.Member, guildId st
 			}
 		}
 		if newNick != nick {
-			if err := s.GuildMemberNickname(guildId, userId, newNick); err != nil {
+			if err := s.GuildMemberNickname(guildId, userId, newNick); err == nil {
+				if messageSender != nil {
+					msg := strings.ReplaceAll(msgs[5], "{{old}}", nick)
+					msg = strings.ReplaceAll(msg, "{{new}}", newNick)
+					messageSender <- msg
+				}
+			} else {
 				log.Println("Nickname change failed (2) :", err)
 				counterError++
 			}

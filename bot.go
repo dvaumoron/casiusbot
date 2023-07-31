@@ -84,7 +84,7 @@ func main() {
 	guild, err := session.Guild(guildId)
 	if err != nil {
 		log.Println("Cannot retrieve the guild :", err)
-		return
+		return // to allow defer
 	}
 	ownerId := guild.OwnerID
 	guildRoles := guild.Roles
@@ -94,7 +94,7 @@ func main() {
 	guildChannels, err := session.GuildChannels(guildId)
 	if err != nil {
 		log.Println("Cannot retrieve the guild channels :", err)
-		return
+		return // to allow defer
 	}
 
 	targetPrefixChannelId := ""
@@ -115,11 +115,15 @@ func main() {
 	}
 	if targetNewsChannelId == "" {
 		log.Println("Cannot retrieve the guild channel :", targetNewsChannelName)
-		return
+		return // to allow defer
 	}
 	if targetReminderChannelId == "" {
 		log.Println("Cannot retrieve the guild channel (2) :", targetReminderChannelName)
-		return
+		return // to allow defer
+	}
+	if targetPrefixChannelName == "" {
+		log.Println("Cannot retrieve the guild channel (3) :", targetPrefixChannelName)
+		return // to allow defer
 	}
 	// emptying data no longer useful for GC cleaning
 	guildChannels = nil
@@ -190,11 +194,17 @@ func main() {
 	guildMembers, err := session.GuildMembers(guildId, "", 1000)
 	if err != nil {
 		log.Println("Cannot retrieve members of the guild :", err)
-		return
+		return // to allow defer
 	}
 
+	channelManager := ChannelSenderManager{}
+	channelManager.AddChannel(session, targetPrefixChannelId)
+	channelManager.AddChannel(session, targetNewsChannelId)
+	channelManager.AddChannel(session, targetReminderChannelId)
+	prefixChannelSender := channelManager[targetPrefixChannelId]
+
 	var cmdworking boolAtom
-	counterError := applyPrefixes(session, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, &cmdworking)
+	counterError := applyPrefixes(session, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs, &cmdworking)
 	if counterError != 0 {
 		log.Println("Trying to apply-prefix at startup generate errors :", counterError)
 	}
@@ -209,22 +219,16 @@ func main() {
 
 	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
 		if userId := u.User.ID; userId != ownerId && !cmdworking.Get() {
-			applyPrefix(s, u.Member, u.GuildID, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes)
+			applyPrefix(s, prefixChannelSender, u.Member, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
 		}
 	})
 
-	channelManager := ChannelSenderManager{}
-	channelManager.AddChannel(session, targetPrefixChannelId)
-	channelManager.AddChannel(session, targetNewsChannelId)
-	channelManager.AddChannel(session, targetReminderChannelId)
-
-	prefixChannelSender := channelManager[targetPrefixChannelId]
 	defaultRoleDisplayName := roleIdToDisplayName[defaultRoleId]
 	execCmds := map[string]func(*discordgo.Session, *discordgo.InteractionCreate){
 		applyCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			guildId := i.GuildID
 			membersCmd(s, guildId, idInSet(i.Member.Roles, authorizedRoleIds), msgs, i.Interaction, func(guildMembers []*discordgo.Member) int {
-				return applyPrefixes(s, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, &cmdworking)
+				return applyPrefixes(s, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs, &cmdworking)
 			})
 		},
 		cleanCmd.Name: func(s *discordgo.Session, i *discordgo.InteractionCreate) {

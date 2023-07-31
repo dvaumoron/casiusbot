@@ -76,7 +76,7 @@ func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageS
 		}
 		messageSender <- buildMsgWithNameValueList(msgs[4], roleNameToCountStr)
 	} else {
-		messageSender <- msgs[2]
 		log.Println("Members retrieving failed (2) :", err)
+		messageSender <- msgs[2]
 	}
 }
