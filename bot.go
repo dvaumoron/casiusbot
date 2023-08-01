@@ -49,17 +49,21 @@ func main() {
 
 	guildId := requireConf("GUILD_ID")
 	joiningRole := strings.TrimSpace(os.Getenv("JOINING_ROLE"))
-	defaultRole := strings.TrimSpace(os.Getenv("DEFAULT_ROLE"))
-	gameList := getAndTrimSlice("GAME_LIST")
+	defaultRole := requireConf("DEFAULT_ROLE")
+	gameList := getTrimmedSlice("GAME_LIST")
 	updateGameInterval := 30 * time.Second
 	targetPrefixChannelName := strings.TrimSpace(os.Getenv("TARGET_PREFIX_CHANNEL"))
 	targetCmdChannelName := strings.TrimSpace(os.Getenv("TARGET_CMD_CHANNEL"))
 	targetNewsChannelName := strings.TrimSpace(os.Getenv("TARGET_NEWS_CHANNEL"))
-	feedURLs := getAndTrimSlice("FEED_URLS")
+	feedURLs := getTrimmedSlice("FEED_URLS")
 	checkInterval := getAndParseDurationSec("CHECK_INTERVAL")
 	targetReminderChannelName := strings.TrimSpace(os.Getenv("TARGET_REMINDER_CHANNEL"))
 	reminderDelays := getAndParseDelayMins("REMINDER_BEFORES")
 	reminderPrefix := buildReminderPrefix("REMINDER_TEXT", guildId)
+
+	if checkInterval == 0 {
+		log.Fatalln("CHECK_INTERVAL is required")
+	}
 
 	var translater Translater
 	feedNumber := len(feedURLs)
@@ -149,8 +153,9 @@ func main() {
 	targetNewsChannelName = ""
 	targetReminderChannelName = ""
 
-	roleIdToPrefix := map[string]string{}
 	roleNameToId := map[string]string{}
+	prefixRoleIds := map[string]empty{}
+	roleIdToPrefix := map[string]string{}
 	roleIdToDisplayName := map[string]string{}
 	for _, guildRole := range guildRoles {
 		name := guildRole.Name
@@ -159,6 +164,7 @@ func main() {
 		displayName := name
 		if prefix, ok := roleNameToPrefix[name]; ok {
 			roleIdToPrefix[id] = prefix
+			prefixRoleIds[id] = empty{}
 			var buffer strings.Builder
 			buffer.WriteString(name)
 			buffer.WriteByte(' ')
@@ -180,55 +186,65 @@ func main() {
 			return // to allow defer
 		}
 		cmds = append(cmds, &discordgo.ApplicationCommand{
-			Name:        cmd,
-			Description: roleCmdDesc + roleName,
+			Name: cmd, Description: roleCmdDesc + roleName,
 		})
+		cmdRoleIds[roleId] = empty{}
 		cmdToRoleId[cmd] = roleId
 	}
 	// for GC cleaning
 	cmdToRoleName = nil
 
-	authorizedRoleIds := initIdSet("AUTHORIZED_ROLES", roleNameToId)
-	forbiddenRoleIds := initIdSet("FORBIDDEN_ROLES", roleNameToId)
-
-	joiningRoleId := roleNameToId[joiningRole]
-	// for GC cleaning
-	joiningRole = ""
+	authorizedRoleIds, err := getIdSet("AUTHORIZED_ROLES", roleNameToId)
+	if err != nil {
+		log.Println(err)
+		return // to allow defer
+	}
+	forbiddenRoleIds, err := getIdSet("FORBIDDEN_ROLES", roleNameToId)
+	if err != nil {
+		log.Println(err)
+		return // to allow defer
+	}
 
 	defaultRoleId := roleNameToId[defaultRole]
+	if defaultRoleId == "" {
+		log.Println("Unrecognized role name for default :", defaultRole)
+		return // to allow defer
+	}
 	// for GC cleaning
 	defaultRole = ""
 
-	ignoredRoleIds := initIdSet("IGNORED_ROLES", roleNameToId)
-	// for GC cleaning
+	ignoredRoleIds, err := getIdSet("IGNORED_ROLES", roleNameToId)
+	if err != nil {
+		log.Println(err)
+		return // to allow defer
+	}
 
-	specialRoleIds := map[string]empty{}
-	for _, name := range specialRoles {
-		specialRoleIds[roleNameToId[name]] = empty{}
+	specialRoleIds, err := initIdSet(specialRoles, roleNameToId)
+	if err != nil {
+		log.Println(err)
+		return // to allow defer
 	}
 	// for GC cleaning
 	specialRoles = nil
 
-	prefixRoleIds := map[string]empty{}
-	for roleId := range roleIdToPrefix {
-		prefixRoleIds[roleId] = empty{}
-		if _, ok := specialRoleIds[roleId]; !ok {
-			cmdRoleIds[roleId] = empty{}
-		}
-	}
-
-	countFilter := false
+	countFilter := true
 	var countFilterRoleIds map[string]empty
 	switch countFilterType := strings.TrimSpace(os.Getenv("COUNT_FILTER_TYPE")); countFilterType {
 	case "list":
-		countFilter = true
-		countFilterRoleIds = initIdSet("COUNT_FILTER_ROLES", roleNameToId)
+		countFilterRoleIds, err = getIdSet("COUNT_FILTER_ROLES", roleNameToId)
+		if err != nil {
+			log.Println(err)
+			return // to allow defer
+		}
 	case "prefix":
-		countFilter = true
 		countFilterRoleIds = prefixRoleIds
 	case "cmdPrefix":
-		countFilter = true
 		countFilterRoleIds = cmdRoleIds
+	case "":
+		countFilter = false
+	default:
+		log.Println("COUNT_FILTER_TYPE must be empty or one of : \"list\", \"prefix\", \"cmdPrefix\"")
+		return // to allow defer
 	}
 	// for GC cleaning
 	roleNameToId = nil
@@ -251,16 +267,20 @@ func main() {
 	var cmdMonitor Monitor
 	counterError := applyPrefixes(session, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
 	if counterError != 0 {
-		log.Println("Trying to apply-prefix at startup generate errors :", counterError)
+		log.Println("Trying to apply prefixes at startup generate errors :", counterError)
 	}
 	// for GC cleaning
 	guildMembers = nil
 
-	session.AddHandler(func(s *discordgo.Session, r *discordgo.GuildMemberAdd) {
-		if err := s.GuildMemberRoleAdd(guildId, r.User.ID, joiningRoleId); err != nil {
-			log.Println("Joining role addition failed :", err)
-		}
-	})
+	if joiningRoleId := roleNameToId[joiningRole]; joiningRoleId != "" {
+		session.AddHandler(func(s *discordgo.Session, r *discordgo.GuildMemberAdd) {
+			if err := s.GuildMemberRoleAdd(guildId, r.User.ID, joiningRoleId); err != nil {
+				log.Println("Joining role addition failed :", err)
+			}
+		})
+	}
+	// for GC cleaning
+	joiningRole = ""
 
 	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
 		if userId := u.User.ID; userId != ownerId && !cmdMonitor.Running() {
@@ -315,7 +335,11 @@ func main() {
 
 	tickers := launchTickers(feedNumber+1, checkInterval)
 
-	startTime := time.Now().Add(-checkInterval).Add(-getAndParseDurationSec("INITIAL_BACKWARD_LOADING"))
+	startTime := time.Now().Add(-checkInterval)
+	if backwardLoading := getAndParseDurationSec("INITIAL_BACKWARD_LOADING"); backwardLoading != 0 {
+		startTime = startTime.Add(-backwardLoading)
+	}
+
 	bgReadMultipleRSS(channelManager[targetNewsChannelId], feedURLs, translater, startTime, tickers)
 	go remindEvent(session, guildId, reminderDelays, channelManager[targetReminderChannelId], reminderPrefix, startTime, tickers[feedNumber])
 
