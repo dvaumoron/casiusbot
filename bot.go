@@ -45,7 +45,10 @@ func main() {
 	countCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_COUNT"))
 	prefixMsg := strings.TrimSpace(os.Getenv("MESSAGE_PREFIX"))
 	noChangeMsg := strings.TrimSpace(os.Getenv("MESSAGE_NO_CHANGE"))
-	msgs := [...]string{okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg, prefixMsg, noChangeMsg, endedCmdMsg, runningCmdMsg}
+	msgs := [...]string{
+		okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg, prefixMsg,
+		noChangeMsg, endedCmdMsg, runningCmdMsg, strings.ReplaceAll(errPartialCmdMsg, "{{cmd}} ", ""),
+	}
 
 	guildId := requireConf("GUILD_ID")
 	joiningRole := strings.TrimSpace(os.Getenv("JOINING_ROLE"))
@@ -256,6 +259,13 @@ func main() {
 	roleNameToId = nil
 	prefixRoleIds = nil
 
+	infos := GuildAndConfInfo{
+		guildId: guildId, ownerId: ownerId, defaultRoleId: defaultRoleId, authorizedRoleIds: authorizedRoleIds,
+		forbiddenRoleIds: forbiddenRoleIds, ignoredRoleIds: ignoredRoleIds, cmdRoleIds: cmdRoleIds,
+		specialRoleIds: specialRoleIds, roleIdToPrefix: roleIdToPrefix, prefixes: prefixes,
+		roleIdToDisplayName: roleIdToDisplayName, msgs: msgs,
+	}
+
 	guildMembers, err := session.GuildMembers(guildId, "", 1000)
 	if err != nil {
 		log.Println("Cannot retrieve members of the guild :", err)
@@ -271,8 +281,7 @@ func main() {
 	cmdChannelSender := channelManager[targetCmdChannelId]
 
 	var cmdMonitor Monitor
-	counterError := applyPrefixes(session, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
-	if counterError != 0 {
+	if counterError := applyPrefixes(session, guildMembers, infos); counterError != 0 {
 		log.Println("Trying to apply prefixes at startup generate errors :", counterError)
 	}
 	// for GC cleaning
@@ -291,34 +300,34 @@ func main() {
 	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
 		if userId := u.User.ID; userId != ownerId && !cmdMonitor.Running() {
 			// messageSender can be non nil, so beforeUpdate must not be nil
-			applyPrefix(s, prefixChannelSender, u.Member, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
+			applyPrefix(s, prefixChannelSender, u.Member, infos)
 		}
 	})
 
 	defaultRoleDisplayName := roleIdToDisplayName[defaultRoleId]
 	execCmds := map[string]func(*discordgo.Session, *discordgo.InteractionCreate){}
 	addNonEmpty(execCmds, applyName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		membersCmd(s, i, cmdChannelSender, applyName, guildId, authorizedRoleIds, msgs, &cmdMonitor, func(guildMembers []*discordgo.Member) int {
-			return applyPrefixes(s, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
+		membersCmd(s, i, cmdChannelSender, applyName, infos, &cmdMonitor, func(guildMembers []*discordgo.Member) int {
+			return applyPrefixes(s, guildMembers, infos)
 		})
 	})
 	addNonEmpty(execCmds, cleanName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		membersCmd(s, i, cmdChannelSender, cleanName, guildId, authorizedRoleIds, msgs, &cmdMonitor, func(guildMembers []*discordgo.Member) int {
-			return cleanPrefixes(s, guildMembers, guildId, ownerId, prefixes)
+		membersCmd(s, i, cmdChannelSender, cleanName, infos, &cmdMonitor, func(guildMembers []*discordgo.Member) int {
+			return cleanPrefixes(s, guildMembers, infos)
 		})
 	})
 	addNonEmpty(execCmds, resetName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		addRoleCmd(s, i, ownerId, defaultRoleId, defaultRoleDisplayName, forbiddenRoleIds, cmdRoleIds, &cmdMonitor, msgs)
+		addRoleCmd(s, i, defaultRoleId, defaultRoleDisplayName, infos, &cmdMonitor)
 	})
 	addNonEmpty(execCmds, countName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		countRoleCmd(s, i, roleIdToDisplayName, countFilter, countFilterRoleIds, msgs)
+		countRoleCmd(s, i, countFilter, countFilterRoleIds, infos)
 	})
 
 	for _, cmdAndRoleId := range cmdAndRoleIds {
 		addedRoleId := cmdAndRoleId[1]
 		addedRoleDisplayName := roleIdToDisplayName[addedRoleId]
 		execCmds[cmdAndRoleId[0]] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			addRoleCmd(s, i, ownerId, addedRoleId, addedRoleDisplayName, forbiddenRoleIds, cmdRoleIds, &cmdMonitor, msgs)
+			addRoleCmd(s, i, addedRoleId, addedRoleDisplayName, infos, &cmdMonitor)
 		}
 	}
 	// for GC cleaning

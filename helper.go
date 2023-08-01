@@ -34,6 +34,21 @@ import (
 
 type empty = struct{}
 
+type GuildAndConfInfo struct {
+	guildId             string
+	ownerId             string
+	defaultRoleId       string
+	authorizedRoleIds   map[string]empty
+	forbiddenRoleIds    map[string]empty
+	ignoredRoleIds      map[string]empty
+	cmdRoleIds          map[string]empty
+	specialRoleIds      map[string]empty
+	roleIdToPrefix      map[string]string
+	prefixes            []string
+	roleIdToDisplayName map[string]string
+	msgs                [10]string
+}
+
 type ChannelSenderManager map[string]chan<- string
 
 func (m ChannelSenderManager) AddChannel(session *discordgo.Session, channelId string) {
