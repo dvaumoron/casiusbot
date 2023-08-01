@@ -36,14 +36,26 @@ type empty = struct{}
 type ChannelSenderManager map[string]chan<- string
 
 func (m ChannelSenderManager) AddChannel(session *discordgo.Session, channelId string) {
-	if _, ok := m[channelId]; !ok {
+	if _, ok := m[channelId]; !ok && channelId != "" {
 		m[channelId] = createMessageSender(session, channelId)
 	}
 }
 
-func initIdSet(names []string, nameToId map[string]string) map[string]empty {
+func requireConf(valueConfName string) string {
+	value := strings.TrimSpace(os.Getenv(valueConfName))
+	if value == "" {
+		log.Fatalln("Configuration value is missing :", valueConfName)
+	}
+	return value
+}
+
+func initIdSet(namesConfName string, nameToId map[string]string) map[string]empty {
+	names := os.Getenv(namesConfName)
+	if names == "" {
+		return nil
+	}
 	idSet := map[string]empty{}
-	for _, name := range names {
+	for _, name := range strings.Split(names, ",") {
 		idSet[nameToId[strings.TrimSpace(name)]] = empty{}
 	}
 	return idSet
@@ -95,10 +107,19 @@ func getAndParseDelayMins(valuesConfName string) []time.Duration {
 	return delays
 }
 
-func newCommand(cmdConfName string, cmdDescConfName string) *discordgo.ApplicationCommand {
-	return &discordgo.ApplicationCommand{
-		Name:        strings.TrimSpace(os.Getenv(cmdConfName)),
-		Description: strings.TrimSpace(os.Getenv(cmdDescConfName)),
+func appendCommand(cmds []*discordgo.ApplicationCommand, cmdConfName string, cmdDescConfName string) (string, []*discordgo.ApplicationCommand) {
+	cmdName := strings.TrimSpace(os.Getenv(cmdConfName))
+	if cmdName != "" {
+		cmds = append(cmds, &discordgo.ApplicationCommand{
+			Name: cmdName, Description: requireConf(cmdDescConfName),
+		})
+	}
+	return cmdName, cmds
+}
+
+func addNonEmpty[T any](m map[string]T, name string, value T) {
+	if name != "" {
+		m[name] = value
 	}
 }
 
@@ -147,8 +168,7 @@ func dispatchTick(newTime time.Time, subTickers []chan time.Time) {
 }
 
 func updateGameStatus(session *discordgo.Session, games []string, interval time.Duration) {
-	gamesLen := len(games)
-	if gamesLen != 0 {
+	if gamesLen := len(games); gamesLen != 0 {
 		for range time.Tick(interval) {
 			session.UpdateGameStatus(0, games[rand.Intn(gamesLen)])
 		}

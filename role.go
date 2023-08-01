@@ -26,7 +26,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, ownerId string, addedRoleId string, addedRoleDisplayName string, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, cmdMonitor *Monitor, msgs [9]string) {
+func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, ownerId string, addedRoleId string, addedRoleDisplayName string, forbiddenRoleIds map[string]empty, cmdRoleIds map[string]empty, cmdMonitor *Monitor, msgs [9]string) {
 	guildId := i.GuildID
 	roleIds := i.Member.Roles
 	returnMsg := msgs[0]
@@ -40,12 +40,10 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, ownerId st
 				continue
 			}
 
-			if _, ok := roleIdToPrefix[roleId]; ok {
-				if _, ok := specialRoleIds[roleId]; !ok {
-					if err := s.GuildMemberRoleRemove(guildId, userId, roleId); err != nil {
-						log.Println("Prefix role removing failed :", err)
-						returnMsg = msgs[2]
-					}
+			if _, ok := cmdRoleIds[roleId]; ok {
+				if err := s.GuildMemberRoleRemove(guildId, userId, roleId); err != nil {
+					log.Println("Prefix role removing failed :", err)
+					returnMsg = msgs[2]
 				}
 			}
 		}
@@ -68,20 +66,19 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, ownerId st
 	})
 }
 
-func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, roleIdToDisplayName map[string]string, roleIdToPrefix map[string]string, filter bool, msgs [9]string) {
+func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, roleIdToDisplayName map[string]string, filter bool, filterRoleIds map[string]empty, msgs [9]string) {
 	returnMsg := msgs[2]
 	if guildMembers, err := s.GuildMembers(i.GuildID, "", 1000); err == nil {
 		roleIdToCount := map[string]int{}
 		for _, guildMember := range guildMembers {
 			for _, roleId := range guildMember.Roles {
 				if filter {
-					if _, ok := roleIdToPrefix[roleId]; !ok {
+					if _, ok := filterRoleIds[roleId]; !ok {
 						continue
 					}
 				}
 				roleIdToCount[roleId]++
 			}
-
 		}
 		roleNameToCountStr := map[string]string{}
 		for roleId, count := range roleIdToCount {

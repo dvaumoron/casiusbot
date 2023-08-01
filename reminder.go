@@ -20,7 +20,6 @@ package main
 
 import (
 	"log"
-	"os"
 	"strings"
 	"time"
 
@@ -29,7 +28,7 @@ import (
 
 func buildReminderPrefix(reminderConfName string, guildId string) string {
 	var reminderBuilder strings.Builder
-	reminderBuilder.WriteString(strings.TrimSpace(os.Getenv(reminderConfName)))
+	reminderBuilder.WriteString(requireConf(reminderConfName))
 	reminderBuilder.WriteString("\nhttps://discord.com/events/")
 	reminderBuilder.WriteString(guildId)
 	reminderBuilder.WriteByte('/')

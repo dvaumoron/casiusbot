@@ -38,17 +38,12 @@ func bgAddTranslationFilter(messageSender chan<- string, selector string, transl
 
 func addTranslationFiltering(messageSender chan<- string, extracter func(linkInfo) string, translater Translater, filteringChan <-chan linkInfo) {
 	for info := range filteringChan {
-		// use a separate function to avoid waiting infinitely for the defering execution of body close
-		addTranslationFilter(messageSender, extracter, translater, info)
+		var filteredMessageBuilder strings.Builder
+		filteredMessageBuilder.WriteString(info.link)
+		filteredMessageBuilder.WriteByte('\n')
+		filteredMessageBuilder.WriteString(translater.Translate(extracter(info)))
+		messageSender <- filteredMessageBuilder.String()
 	}
-}
-
-func addTranslationFilter(messageSender chan<- string, extractor func(linkInfo) string, translater Translater, info linkInfo) {
-	var filteredMessageBuilder strings.Builder
-	filteredMessageBuilder.WriteString(info.link)
-	filteredMessageBuilder.WriteByte('\n')
-	filteredMessageBuilder.WriteString(translater.Translate(extractor(info)))
-	messageSender <- filteredMessageBuilder.String()
 }
 
 func initExtracter(selector string) func(linkInfo) string {

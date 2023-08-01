@@ -20,8 +20,6 @@ package main
 
 import (
 	"log"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/mmcdole/gofeed"
@@ -32,23 +30,9 @@ type linkInfo struct {
 	description string
 }
 
-func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, startTime time.Time, tickers []chan time.Time) {
+func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, translater Translater, startTime time.Time, tickers []chan time.Time) {
 	if len(feedURLs) == 0 {
 		return
-	}
-
-	var translater Translater
-	if deepLToken := strings.TrimSpace(os.Getenv("DEEPL_TOKEN")); deepLToken != "" {
-		deepLUrl := strings.TrimSpace(os.Getenv("DEEPL_API_URL"))
-		targetLang := strings.TrimSpace(os.Getenv("TRANSLATE_TARGET_LANG"))
-		messageError := strings.TrimSpace(os.Getenv("MESSAGE_TRANSLATE_ERROR"))
-		messageLimit := strings.TrimSpace(os.Getenv("MESSAGE_TRANSLATE_LIMIT"))
-		deepLClient, err := makeDeepLClient(deepLUrl, deepLToken, "", targetLang, messageError, messageLimit)
-		if err == nil {
-			translater = deepLClient
-		} else {
-			log.Println("Failed to create translater :", err)
-		}
 	}
 
 	selectors := getAndTrimSlice("FEED_TRANSLATE_SELECTORS")

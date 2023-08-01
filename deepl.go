@@ -42,22 +42,21 @@ type DeepLClient struct {
 	messageLimit string
 }
 
-func makeDeepLClient(baseUrl string, token string, sourceLang string, targetLang string, messageError string, messageLimit string) (DeepLClient, error) {
+func makeDeepLClient(baseUrl string, token string, sourceLang string, targetLang string, messageError string, messageLimit string) DeepLClient {
 	usageUrl, err := url.JoinPath(baseUrl, "v2/usage")
 	if err != nil {
-		return DeepLClient{}, err
+		log.Fatalln("Failed to create translater :", err)
 	}
 
 	translateUrl, err := url.JoinPath(baseUrl, "v2/translate")
 	if err != nil {
-		return DeepLClient{}, err
+		log.Fatalln("Failed to create translater (2) :", err)
 	}
 
-	res := DeepLClient{
+	return DeepLClient{
 		usageUrl: usageUrl, translateUrl: translateUrl, token: "DeepL-Auth-Key " + token,
 		sourceLang: sourceLang, targetLang: targetLang, messageError: messageError, messageLimit: messageLimit,
 	}
-	return res, res.checkUsage(1)
 }
 
 func (c DeepLClient) Translate(msg string) string {
