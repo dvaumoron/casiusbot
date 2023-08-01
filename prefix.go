@@ -56,7 +56,7 @@ func (m *Monitor) Start() bool {
 	return true
 }
 
-func readPrefixConfig(filePathName string) (map[string]string, []string, map[string]string, []string) {
+func readPrefixConfig(filePathName string) (map[string]string, []string, [][2]string, []string) {
 	file, err := os.Open(os.Getenv(filePathName))
 	if err != nil {
 		log.Fatalln("Cannot read the configuration file :", err)
@@ -65,9 +65,9 @@ func readPrefixConfig(filePathName string) (map[string]string, []string, map[str
 
 	scanner := bufio.NewScanner(file)
 	nameToPrefix := map[string]string{}
-	prefixes := make([]string, 0)
-	cmdToName := map[string]string{}
-	specialRoles := make([]string, 0)
+	prefixes := []string{}
+	cmdAndNames := [][2]string{}
+	specialRoles := []string{}
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line != "" && line[0] != '#' {
@@ -85,7 +85,7 @@ func readPrefixConfig(filePathName string) (map[string]string, []string, map[str
 						if cmd == "" {
 							log.Fatalln("Malformed configuration file, empty command")
 						}
-						cmdToName[cmd] = name
+						cmdAndNames = append(cmdAndNames, [2]string{cmd, name})
 					} else {
 						specialRoles = append(specialRoles, name)
 					}
@@ -97,7 +97,7 @@ func readPrefixConfig(filePathName string) (map[string]string, []string, map[str
 	if err = scanner.Err(); err != nil {
 		log.Fatalln("Cannot parse the configuration file :", err)
 	}
-	return nameToPrefix, prefixes, cmdToName, specialRoles
+	return nameToPrefix, prefixes, cmdAndNames, specialRoles
 }
 
 func membersCmd(s *discordgo.Session, messageSender chan<- string, cmdName string, guildId string, authorized bool, msgs [9]string, interaction *discordgo.Interaction, cmdMonitor *Monitor, cmdEffect func([]*discordgo.Member) int) {

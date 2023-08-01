@@ -34,7 +34,7 @@ func main() {
 		log.Println("Loaded .env file")
 	}
 
-	roleNameToPrefix, prefixes, cmdToRoleName, specialRoles := readPrefixConfig("PREFIX_FILE_PATH")
+	roleNameToPrefix, prefixes, cmdAndRoleNames, specialRoles := readPrefixConfig("PREFIX_FILE_PATH")
 
 	okCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_OK"))
 	runningCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_RUNNING"))
@@ -52,14 +52,15 @@ func main() {
 	defaultRole := requireConf("DEFAULT_ROLE")
 	gameList := getTrimmedSlice("GAME_LIST")
 	updateGameInterval := 30 * time.Second
-	targetPrefixChannelName := strings.TrimSpace(os.Getenv("TARGET_PREFIX_CHANNEL"))
-	targetCmdChannelName := strings.TrimSpace(os.Getenv("TARGET_CMD_CHANNEL"))
-	targetNewsChannelName := strings.TrimSpace(os.Getenv("TARGET_NEWS_CHANNEL"))
 	feedURLs := getTrimmedSlice("FEED_URLS")
 	checkInterval := getAndParseDurationSec("CHECK_INTERVAL")
-	targetReminderChannelName := strings.TrimSpace(os.Getenv("TARGET_REMINDER_CHANNEL"))
 	reminderDelays := getAndParseDelayMins("REMINDER_BEFORES")
 	reminderPrefix := buildReminderPrefix("REMINDER_TEXT", guildId)
+
+	targetReminderChannelName := requireConf("TARGET_REMINDER_CHANNEL")
+	targetPrefixChannelName := strings.TrimSpace(os.Getenv("TARGET_PREFIX_CHANNEL"))
+	targetCmdChannelName := strings.TrimSpace(os.Getenv("TARGET_CMD_CHANNEL"))
+	targetNewsChannelName := ""
 
 	if checkInterval == 0 {
 		log.Fatalln("CHECK_INTERVAL is required")
@@ -67,16 +68,20 @@ func main() {
 
 	var translater Translater
 	feedNumber := len(feedURLs)
-	if deepLToken := strings.TrimSpace(os.Getenv("DEEPL_TOKEN")); deepLToken != "" && feedNumber != 0 {
-		deepLUrl := requireConf("DEEPL_API_URL")
-		sourceLang := strings.TrimSpace(os.Getenv("TRANSLATE_SOURCE_LANG"))
-		targetLang := requireConf("TRANSLATE_TARGET_LANG")
-		messageError := requireConf("MESSAGE_TRANSLATE_ERROR")
-		messageLimit := requireConf("MESSAGE_TRANSLATE_LIMIT")
-		translater = makeDeepLClient(deepLUrl, deepLToken, sourceLang, targetLang, messageError, messageLimit)
+	feedActived := feedNumber != 0
+	if feedActived {
+		targetNewsChannelName = requireConf("TARGET_NEWS_CHANNEL")
+		if deepLToken := strings.TrimSpace(os.Getenv("DEEPL_TOKEN")); deepLToken != "" {
+			deepLUrl := requireConf("DEEPL_API_URL")
+			sourceLang := strings.TrimSpace(os.Getenv("TRANSLATE_SOURCE_LANG"))
+			targetLang := requireConf("TRANSLATE_TARGET_LANG")
+			messageError := requireConf("MESSAGE_TRANSLATE_ERROR")
+			messageLimit := requireConf("MESSAGE_TRANSLATE_LIMIT")
+			translater = makeDeepLClient(deepLUrl, deepLToken, sourceLang, targetLang, messageError, messageLimit)
+		}
 	}
 
-	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdToRoleName)+4)
+	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+4)
 	applyName, cmds := appendCommand(cmds, "APPLY_CMD", "DESCRIPTION_APPLY_CMD")
 	cleanName, cmds := appendCommand(cmds, "CLEAN_CMD", "DESCRIPTION_CLEAN_CMD")
 	resetName, cmds := appendCommand(cmds, "RESET_CMD", "DESCRIPTION_RESET_CMD")
@@ -111,13 +116,16 @@ func main() {
 		return // to allow defer
 	}
 
+	targetReminderChannelId := ""
 	targetPrefixChannelId := ""
 	targetCmdChannelId := ""
 	targetNewsChannelId := ""
-	targetReminderChannelId := ""
 	for _, channel := range guildChannels {
 		// multiple if with no else statement (could be the same channel)
 		channelName := channel.Name
+		if channelName == targetReminderChannelName {
+			targetReminderChannelId = channel.ID
+		}
 		if channelName == targetPrefixChannelName {
 			targetPrefixChannelId = channel.ID
 		}
@@ -127,31 +135,29 @@ func main() {
 		if channelName == targetNewsChannelName {
 			targetNewsChannelId = channel.ID
 		}
-		if channelName == targetReminderChannelName {
-			targetReminderChannelId = channel.ID
-		}
-	}
-	if targetNewsChannelId == "" && feedNumber != 0 {
-		log.Println("Cannot retrieve the guild channel for news :", targetNewsChannelName)
-		return // to allow defer
 	}
 	if targetReminderChannelId == "" {
 		log.Println("Cannot retrieve the guild channel for reminders :", targetReminderChannelName)
 		return // to allow defer
 	}
-	if targetPrefixChannelId == "" {
-		log.Println("Cannot retrieve the guild channel, messages on nickname update will be disabled :", targetPrefixChannelName)
+	if targetPrefixChannelId == "" && targetPrefixChannelName != "" {
+		log.Println("Cannot retrieve the guild channel for nickname update messages :", targetPrefixChannelName)
+		return // to allow defer
 	}
-	if targetCmdChannelId == "" {
+	if targetCmdChannelId == "" && (applyName != "" || cleanName != "") {
 		log.Println("Cannot retrieve the guild channel for background command messages :", targetCmdChannelName)
+		return // to allow defer
+	}
+	if targetNewsChannelId == "" && feedActived {
+		log.Println("Cannot retrieve the guild channel for news :", targetNewsChannelName)
 		return // to allow defer
 	}
 	// for GC cleaning
 	guildChannels = nil
+	targetReminderChannelName = ""
 	targetPrefixChannelName = ""
 	targetCmdChannelName = ""
 	targetNewsChannelName = ""
-	targetReminderChannelName = ""
 
 	roleNameToId := map[string]string{}
 	prefixRoleIds := map[string]empty{}
@@ -178,21 +184,21 @@ func main() {
 	guildRoles = nil
 
 	cmdRoleIds := map[string]empty{}
-	cmdToRoleId := map[string]string{}
-	for cmd, roleName := range cmdToRoleName {
-		roleId := roleNameToId[roleName]
+	cmdAndRoleIds := make([][2]string, 0, len(cmdAndRoleNames))
+	for _, cmdAndRoleName := range cmdAndRoleNames {
+		roleId := roleNameToId[cmdAndRoleName[1]]
 		if roleId == "" {
-			log.Println("Unrecognized role name :", roleName)
+			log.Println("Unrecognized role name :", cmdAndRoleName[1])
 			return // to allow defer
 		}
 		cmds = append(cmds, &discordgo.ApplicationCommand{
-			Name: cmd, Description: roleCmdDesc + roleName,
+			Name: cmdAndRoleName[0], Description: roleCmdDesc + cmdAndRoleName[1],
 		})
 		cmdRoleIds[roleId] = empty{}
-		cmdToRoleId[cmd] = roleId
+		cmdAndRoleIds = append(cmdAndRoleIds, [2]string{cmdAndRoleName[0], roleId})
 	}
 	// for GC cleaning
-	cmdToRoleName = nil
+	cmdAndRoleNames = nil
 
 	authorizedRoleIds, err := getIdSet("AUTHORIZED_ROLES", roleNameToId)
 	if err != nil {
@@ -308,15 +314,15 @@ func main() {
 		countRoleCmd(s, i, roleIdToDisplayName, countFilter, countFilterRoleIds, msgs)
 	})
 
-	for cmd, roleId := range cmdToRoleId {
-		addedRoleId := roleId
+	for _, cmdAndRoleId := range cmdAndRoleIds {
+		addedRoleId := cmdAndRoleId[1]
 		addedRoleDisplayName := roleIdToDisplayName[addedRoleId]
-		execCmds[cmd] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		execCmds[cmdAndRoleId[0]] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			addRoleCmd(s, i, ownerId, addedRoleId, addedRoleDisplayName, forbiddenRoleIds, cmdRoleIds, &cmdMonitor, msgs)
 		}
 	}
 	// for GC cleaning
-	cmdToRoleId = nil
+	cmdAndRoleIds = nil
 
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if execCmd, ok := execCmds[i.ApplicationCommandData().Name]; ok {
