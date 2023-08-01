@@ -100,9 +100,9 @@ func readPrefixConfig(filePathName string) (map[string]string, []string, [][2]st
 	return nameToPrefix, prefixes, cmdAndNames, specialRoles
 }
 
-func membersCmd(s *discordgo.Session, messageSender chan<- string, cmdName string, guildId string, authorized bool, msgs [9]string, interaction *discordgo.Interaction, cmdMonitor *Monitor, cmdEffect func([]*discordgo.Member) int) {
+func membersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- string, cmdName string, guildId string, authorizedRoleIds map[string]empty, msgs [9]string, cmdMonitor *Monitor, cmdEffect func([]*discordgo.Member) int) {
 	returnMsg := msgs[0]
-	if authorized {
+	if idInSet(i.Member.Roles, authorizedRoleIds) {
 		if cmdMonitor.Start() {
 			go processMembers(s, messageSender, cmdName, guildId, msgs, cmdMonitor, cmdEffect)
 		} else {
@@ -112,7 +112,7 @@ func membersCmd(s *discordgo.Session, messageSender chan<- string, cmdName strin
 		returnMsg = msgs[1]
 	}
 
-	s.InteractionRespond(interaction, &discordgo.InteractionResponse{
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{Content: returnMsg},
 	})

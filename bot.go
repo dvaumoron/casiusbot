@@ -298,12 +298,12 @@ func main() {
 	defaultRoleDisplayName := roleIdToDisplayName[defaultRoleId]
 	execCmds := map[string]func(*discordgo.Session, *discordgo.InteractionCreate){}
 	addNonEmpty(execCmds, applyName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		membersCmd(s, cmdChannelSender, applyName, guildId, idInSet(i.Member.Roles, authorizedRoleIds), msgs, i.Interaction, &cmdMonitor, func(guildMembers []*discordgo.Member) int {
+		membersCmd(s, i, cmdChannelSender, applyName, guildId, authorizedRoleIds, msgs, &cmdMonitor, func(guildMembers []*discordgo.Member) int {
 			return applyPrefixes(s, guildMembers, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
 		})
 	})
 	addNonEmpty(execCmds, cleanName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		membersCmd(s, cmdChannelSender, cleanName, guildId, idInSet(i.Member.Roles, authorizedRoleIds), msgs, i.Interaction, &cmdMonitor, func(guildMembers []*discordgo.Member) int {
+		membersCmd(s, i, cmdChannelSender, cleanName, guildId, authorizedRoleIds, msgs, &cmdMonitor, func(guildMembers []*discordgo.Member) int {
 			return cleanPrefixes(s, guildMembers, guildId, ownerId, prefixes)
 		})
 	})
