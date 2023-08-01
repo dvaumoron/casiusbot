@@ -171,12 +171,12 @@ func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, guild
 	counterError := 0
 	for _, guildMember := range guildMembers {
 		// messageSender is nil, so beforeUpdate can be nil
-		counterError += applyPrefix(s, nil, guildMember, nil, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
+		counterError += applyPrefix(s, nil, guildMember, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
 	}
 	return counterError
 }
 
-func applyPrefix(s *discordgo.Session, messageSender chan<- string, member *discordgo.Member, beforeUpdate *discordgo.Member, guildId string, ownerId string, defaultRoleId string, ignoredRoleIds map[string]empty, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, prefixes []string, msgs [9]string) int {
+func applyPrefix(s *discordgo.Session, messageSender chan<- string, member *discordgo.Member, guildId string, ownerId string, defaultRoleId string, ignoredRoleIds map[string]empty, specialRoleIds map[string]empty, forbiddenRoleIds map[string]empty, roleIdToPrefix map[string]string, prefixes []string, msgs [9]string) int {
 	counterError := 0
 	userId := member.User.ID
 	roleIds := member.Roles
@@ -199,12 +199,9 @@ func applyPrefix(s *discordgo.Session, messageSender chan<- string, member *disc
 		if newNick != nick {
 			if err := s.GuildMemberNickname(guildId, userId, newNick); err == nil {
 				if messageSender != nil {
-					// here beforeUpdate should not be nil
-					if oldNick := extractNick(beforeUpdate); newNick != oldNick {
-						msg := strings.ReplaceAll(msgs[5], "{{old}}", oldNick)
-						msg = strings.ReplaceAll(msg, "{{new}}", newNick)
-						messageSender <- msg
-					}
+					msg := strings.ReplaceAll(msgs[5], "{{old}}", nick)
+					msg = strings.ReplaceAll(msg, "{{new}}", newNick)
+					messageSender <- msg
 				}
 			} else {
 				log.Println("Nickname change failed (2) :", err)

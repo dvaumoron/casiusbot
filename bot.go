@@ -291,7 +291,7 @@ func main() {
 	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
 		if userId := u.User.ID; userId != ownerId && !cmdMonitor.Running() {
 			// messageSender can be non nil, so beforeUpdate must not be nil
-			applyPrefix(s, prefixChannelSender, u.Member, u.BeforeUpdate, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
+			applyPrefix(s, prefixChannelSender, u.Member, guildId, ownerId, defaultRoleId, ignoredRoleIds, specialRoleIds, forbiddenRoleIds, roleIdToPrefix, prefixes, msgs)
 		}
 	})
 
