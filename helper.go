@@ -19,6 +19,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"math/rand"
 	"os"
@@ -49,16 +50,33 @@ func requireConf(valueConfName string) string {
 	return value
 }
 
-func initIdSet(namesConfName string, nameToId map[string]string) map[string]empty {
+func getIdSet(namesConfName string, nameToId map[string]string) (map[string]empty, error) {
 	names := os.Getenv(namesConfName)
 	if names == "" {
-		return nil
+		return nil, nil
 	}
 	idSet := map[string]empty{}
 	for _, name := range strings.Split(names, ",") {
-		idSet[nameToId[strings.TrimSpace(name)]] = empty{}
+		name := strings.TrimSpace(name)
+		id := nameToId[name]
+		if id == "" {
+			return nil, errors.New("Unrecognized name : " + name)
+		}
+		idSet[id] = empty{}
 	}
-	return idSet
+	return idSet, nil
+}
+
+func initIdSet(trimmedNames []string, nameToId map[string]string) (map[string]empty, error) {
+	idSet := map[string]empty{}
+	for _, name := range trimmedNames {
+		id := nameToId[name]
+		if id == "" {
+			return nil, errors.New("Unrecognized name (2) : " + name)
+		}
+		idSet[nameToId[name]] = empty{}
+	}
+	return idSet, nil
 }
 
 func idInSet(ids []string, idSet map[string]empty) bool {
@@ -70,7 +88,7 @@ func idInSet(ids []string, idSet map[string]empty) bool {
 	return false
 }
 
-func getAndTrimSlice(valuesConfName string) []string {
+func getTrimmedSlice(valuesConfName string) []string {
 	values := os.Getenv(valuesConfName)
 	if values == "" {
 		return nil
@@ -83,7 +101,11 @@ func getAndTrimSlice(valuesConfName string) []string {
 }
 
 func getAndParseDurationSec(valueConfName string) time.Duration {
-	valueSec, err := strconv.ParseInt(os.Getenv(valueConfName), 10, 64)
+	value := os.Getenv(valueConfName)
+	if value == "" {
+		return 0
+	}
+	valueSec, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		log.Println("Configuration", valueConfName, "parsing failed :", err)
 	}

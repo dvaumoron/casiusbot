@@ -35,10 +35,10 @@ func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, translate
 		return
 	}
 
-	selectors := getAndTrimSlice("FEED_TRANSLATE_SELECTORS")
+	selectors := getTrimmedSlice("FEED_TRANSLATE_SELECTORS")
 	selectorsSize := len(selectors)
 
-	checkRules := getAndTrimSlice("FEED_LINK_CHECKERS")
+	checkRules := getTrimmedSlice("FEED_LINK_CHECKERS")
 	checkRulesSize := len(checkRules)
 
 	defaultLinkSender := createLinkSender(messageSender)
