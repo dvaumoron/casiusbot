@@ -85,14 +85,21 @@ func (m *IdMonitor) StartProcessing(id string) bool {
 	return true
 }
 
-type ChannelSenderManager map[string]chan<- string
+type ChannelSenderManager struct {
+	channels map[string]chan<- string
+	session  *discordgo.Session
+}
 
-func (m ChannelSenderManager) AddChannel(session *discordgo.Session, channelId string) {
+func (m ChannelSenderManager) AddChannel(channelId string) {
 	if channelId != "" {
-		if _, ok := m[channelId]; !ok {
-			m[channelId] = createMessageSender(session, channelId)
+		if _, ok := m.channels[channelId]; !ok {
+			m.channels[channelId] = createMessageSender(m.session, channelId)
 		}
 	}
+}
+
+func (m ChannelSenderManager) Get(channelId string) chan<- string {
+	return m.channels[channelId]
 }
 
 func requireConf(valueConfName string) string {

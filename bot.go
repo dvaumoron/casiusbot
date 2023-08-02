@@ -281,13 +281,13 @@ func main() {
 		return // to allow defer
 	}
 
-	channelManager := ChannelSenderManager{}
-	channelManager.AddChannel(session, targetPrefixChannelId)
-	channelManager.AddChannel(session, targetCmdChannelId)
-	channelManager.AddChannel(session, targetNewsChannelId)
-	channelManager.AddChannel(session, targetReminderChannelId)
-	prefixChannelSender := channelManager[targetPrefixChannelId]
-	cmdChannelSender := channelManager[targetCmdChannelId]
+	channelManager := ChannelSenderManager{session: session}
+	channelManager.AddChannel(targetPrefixChannelId)
+	channelManager.AddChannel(targetCmdChannelId)
+	channelManager.AddChannel(targetNewsChannelId)
+	channelManager.AddChannel(targetReminderChannelId)
+	prefixChannelSender := channelManager.Get(targetPrefixChannelId)
+	cmdChannelSender := channelManager.Get(targetCmdChannelId)
 
 	userMonitor := MakeIdMonitor()
 	if counterError := applyPrefixes(session, guildMembers, infos, &userMonitor); counterError != 0 {
@@ -375,8 +375,8 @@ func main() {
 		startTime = startTime.Add(-backwardLoading)
 	}
 
-	bgReadMultipleRSS(channelManager[targetNewsChannelId], feedURLs, translater, startTime, tickers)
-	go remindEvent(session, guildId, reminderDelays, channelManager[targetReminderChannelId], reminderPrefix, startTime, tickers[feedNumber])
+	bgReadMultipleRSS(channelManager.Get(targetNewsChannelId), feedURLs, translater, startTime, tickers)
+	go remindEvent(session, guildId, reminderDelays, channelManager.Get(targetReminderChannelId), reminderPrefix, startTime, tickers[feedNumber])
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
