@@ -229,6 +229,15 @@ func main() {
 		return // to allow defer
 	}
 
+	// merge the two categories
+	forbiddenAndignoredRoleIds := map[string]empty{}
+	for roleId := range forbiddenRoleIds {
+		forbiddenAndignoredRoleIds[roleId] = empty{}
+	}
+	for roleId := range ignoredRoleIds {
+		forbiddenAndignoredRoleIds[roleId] = empty{}
+	}
+
 	specialRoleIds, err := initIdSet(specialRoles, roleNameToId)
 	if err != nil {
 		log.Println(err)
@@ -261,8 +270,8 @@ func main() {
 
 	infos := GuildAndConfInfo{
 		guildId: guildId, ownerId: ownerId, defaultRoleId: defaultRoleId, authorizedRoleIds: authorizedRoleIds,
-		forbiddenRoleIds: forbiddenRoleIds, ignoredRoleIds: ignoredRoleIds, cmdRoleIds: cmdRoleIds,
-		specialRoleIds: specialRoleIds, roleIdToPrefix: roleIdToPrefix, prefixes: prefixes,
+		forbiddenRoleIds: forbiddenRoleIds, ignoredRoleIds: ignoredRoleIds, forbiddenAndignoredRoleIds: forbiddenAndignoredRoleIds,
+		cmdRoleIds: cmdRoleIds, specialRoleIds: specialRoleIds, roleIdToPrefix: roleIdToPrefix, prefixes: prefixes,
 		roleIdToDisplayName: roleIdToDisplayName, msgs: msgs,
 	}
 
