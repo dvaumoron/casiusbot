@@ -87,8 +87,10 @@ func (m *IdMonitor) StartProcessing(id string) bool {
 type ChannelSenderManager map[string]chan<- string
 
 func (m ChannelSenderManager) AddChannel(session *discordgo.Session, channelId string) {
-	if _, ok := m[channelId]; !ok && channelId != "" {
-		m[channelId] = createMessageSender(session, channelId)
+	if channelId != "" {
+		if _, ok := m[channelId]; !ok {
+			m[channelId] = createMessageSender(session, channelId)
+		}
 	}
 }
 

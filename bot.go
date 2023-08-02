@@ -235,7 +235,6 @@ func main() {
 	// for GC cleaning
 	specialRoles = nil
 
-	countFilter := true
 	var countFilterRoleIds map[string]empty
 	switch countFilterType := strings.TrimSpace(os.Getenv("COUNT_FILTER_TYPE")); countFilterType {
 	case "list":
@@ -249,7 +248,7 @@ func main() {
 	case "cmdPrefix":
 		countFilterRoleIds = cmdRoleIds
 	case "":
-		countFilter = false
+		// a nil countFilterRoleIds disable filtering
 	default:
 		log.Println("COUNT_FILTER_TYPE must be empty or one of : \"list\", \"prefix\", \"cmdPrefix\"")
 		return // to allow defer
@@ -286,7 +285,15 @@ func main() {
 	// for GC cleaning
 	guildMembers = nil
 
+	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
+		if userId := u.User.ID; userId != ownerId && userMonitor.StartProcessing(userId) {
+			defer userMonitor.StopProcessing(userId)
+			applyPrefix(s, prefixChannelSender, u.Member, infos, false)
+		}
+	})
+
 	if joiningRoleId := roleNameToId[joiningRole]; joiningRoleId != "" {
+		// joining rule is after prefix rule, to manage case where joining role have a prefix
 		session.AddHandler(func(s *discordgo.Session, r *discordgo.GuildMemberAdd) {
 			if err := s.GuildMemberRoleAdd(guildId, r.User.ID, joiningRoleId); err != nil {
 				log.Println("Joining role addition failed :", err)
@@ -295,13 +302,6 @@ func main() {
 	}
 	// for GC cleaning
 	joiningRole = ""
-
-	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
-		if userId := u.User.ID; userId != ownerId && userMonitor.StartProcessing(userId) {
-			defer userMonitor.StopProcessing(userId)
-			applyPrefix(s, prefixChannelSender, u.Member, infos)
-		}
-	})
 
 	defaultRoleDisplayName := roleIdToDisplayName[defaultRoleId]
 	execCmds := map[string]func(*discordgo.Session, *discordgo.InteractionCreate){}
@@ -319,7 +319,7 @@ func main() {
 		addRoleCmd(s, i, defaultRoleId, defaultRoleDisplayName, infos, &userMonitor)
 	})
 	addNonEmpty(execCmds, countName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		countRoleCmd(s, i, countFilter, countFilterRoleIds, infos)
+		countRoleCmd(s, i, countFilterRoleIds, infos)
 	})
 
 	for _, cmdAndRoleId := range cmdAndRoleIds {

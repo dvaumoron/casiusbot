@@ -21,7 +21,6 @@ package main
 import (
 	"log"
 	"strconv"
-	"strings"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -49,20 +48,22 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 		}
 
 		if toAdd {
-			if err := s.GuildMemberRoleAdd(infos.guildId, userId, addedRoleId); err == nil {
-				messageQueue := make(chan string, 1)
-				counterError += applyPrefix(s, messageQueue, i.Member, infos)
-				if counterError == 0 {
-					returnMsg = <-messageQueue
-				}
-			} else {
+			if err := s.GuildMemberRoleAdd(infos.guildId, userId, addedRoleId); err != nil {
 				log.Println("Prefix role addition failed :", err)
 				counterError++
 			}
+		}
+
+		messageQueue := make(chan string, 1)
+		member, err := s.GuildMember(infos.guildId, userId)
+		if err == nil {
+			counterError += applyPrefix(s, messageQueue, member, infos, true)
+			if counterError == 0 {
+				returnMsg = <-messageQueue
+			}
 		} else {
-			msg := strings.ReplaceAll(infos.msgs[6], "{{user}}", i.Member.Nick)
-			msg = strings.ReplaceAll(msg, "{{role}}", addedRoleDisplayName)
-			returnMsg = msg
+			log.Println("Retrieving member failed :", err)
+			counterError++
 		}
 
 		if counterError != 0 {
@@ -76,20 +77,26 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 	})
 }
 
-func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, filter bool, filterRoleIds map[string]empty, infos GuildAndConfInfo) {
+func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, filterRoleIds map[string]empty, infos GuildAndConfInfo) {
 	returnMsg := infos.msgs[2]
 	if guildMembers, err := s.GuildMembers(i.GuildID, "", 1000); err == nil {
 		roleIdToCount := map[string]int{}
-		for _, guildMember := range guildMembers {
-			for _, roleId := range guildMember.Roles {
-				if filter {
-					if _, ok := filterRoleIds[roleId]; !ok {
-						continue
+		if len(filterRoleIds) == 0 {
+			for _, guildMember := range guildMembers {
+				for _, roleId := range guildMember.Roles {
+					if _, ok := filterRoleIds[roleId]; ok {
+						roleIdToCount[roleId]++
 					}
 				}
-				roleIdToCount[roleId]++
+			}
+		} else {
+			for _, guildMember := range guildMembers {
+				for _, roleId := range guildMember.Roles {
+					roleIdToCount[roleId]++
+				}
 			}
 		}
+
 		roleNameToCountStr := map[string]string{}
 		for roleId, count := range roleIdToCount {
 			roleNameToCountStr[infos.roleIdToDisplayName[roleId]] = strconv.Itoa(count)
