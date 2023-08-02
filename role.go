@@ -26,11 +26,12 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleId string, addedRoleDisplayName string, infos GuildAndConfInfo, cmdMonitor *Monitor) {
+func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleId string, addedRoleDisplayName string, infos GuildAndConfInfo, userMonitor *IdMonitor) {
 	returnMsg := infos.msgs[0]
 	if idInSet(i.Member.Roles, infos.forbiddenRoleIds) {
 		returnMsg = infos.msgs[1]
-	} else if userId := i.Member.User.ID; userId != infos.ownerId && !cmdMonitor.Running() {
+	} else if userId := i.Member.User.ID; userId != infos.ownerId && userMonitor.StartProcessing(userId) {
+		defer userMonitor.StopProcessing(userId)
 		toAdd := true
 		counterError := 0
 		for _, roleId := range i.Member.Roles {
@@ -48,7 +49,6 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 		}
 
 		if toAdd {
-			// TODO to finish
 			if err := s.GuildMemberRoleAdd(infos.guildId, userId, addedRoleId); err == nil {
 				messageQueue := make(chan string, 1)
 				counterError += applyPrefix(s, messageQueue, i.Member, infos)
@@ -59,14 +59,14 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 				log.Println("Prefix role addition failed :", err)
 				counterError++
 			}
-
-			if counterError != 0 {
-				returnMsg = infos.msgs[9] + strconv.Itoa(counterError)
-			}
 		} else {
 			msg := strings.ReplaceAll(infos.msgs[6], "{{user}}", i.Member.Nick)
 			msg = strings.ReplaceAll(msg, "{{role}}", addedRoleDisplayName)
 			returnMsg = msg
+		}
+
+		if counterError != 0 {
+			returnMsg = infos.msgs[8] + strconv.Itoa(counterError)
 		}
 	}
 

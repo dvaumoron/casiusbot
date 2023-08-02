@@ -37,17 +37,16 @@ func main() {
 	roleNameToPrefix, prefixes, cmdAndRoleNames, specialRoles := readPrefixConfig("PREFIX_FILE_PATH")
 
 	okCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_OK"))
-	runningCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_RUNNING"))
-	endedCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_ENDED"))
-	errPartialCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_PARTIAL_ERROR")) + " "
-	errGlobalCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_GLOBAL_ERROR"))
 	errUnauthorizedCmdMsg := buildMsgWithNameValueList(strings.TrimSpace(os.Getenv("MESSAGE_CMD_UNAUTHORIZED")), roleNameToPrefix)
+	errGlobalCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_GLOBAL_ERROR"))
+	errPartialCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_PARTIAL_ERROR")) + " "
 	countCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_COUNT"))
 	prefixMsg := strings.TrimSpace(os.Getenv("MESSAGE_PREFIX"))
 	noChangeMsg := strings.TrimSpace(os.Getenv("MESSAGE_NO_CHANGE"))
+	endedCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_ENDED"))
 	msgs := [...]string{
 		okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg, prefixMsg,
-		noChangeMsg, endedCmdMsg, runningCmdMsg, strings.ReplaceAll(errPartialCmdMsg, "{{cmd}} ", ""),
+		noChangeMsg, endedCmdMsg, strings.ReplaceAll(errPartialCmdMsg, "{{cmd}} ", ""),
 	}
 
 	guildId := requireConf("GUILD_ID")
@@ -280,8 +279,8 @@ func main() {
 	prefixChannelSender := channelManager[targetPrefixChannelId]
 	cmdChannelSender := channelManager[targetCmdChannelId]
 
-	var cmdMonitor Monitor
-	if counterError := applyPrefixes(session, guildMembers, infos); counterError != 0 {
+	userMonitor := MakeIdMonitor()
+	if counterError := applyPrefixes(session, guildMembers, infos, &userMonitor); counterError != 0 {
 		log.Println("Trying to apply prefixes at startup generate errors :", counterError)
 	}
 	// for GC cleaning
@@ -298,8 +297,8 @@ func main() {
 	joiningRole = ""
 
 	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
-		if userId := u.User.ID; userId != ownerId && !cmdMonitor.Running() {
-			// messageSender can be non nil, so beforeUpdate must not be nil
+		if userId := u.User.ID; userId != ownerId && userMonitor.StartProcessing(userId) {
+			defer userMonitor.StopProcessing(userId)
 			applyPrefix(s, prefixChannelSender, u.Member, infos)
 		}
 	})
@@ -307,17 +306,17 @@ func main() {
 	defaultRoleDisplayName := roleIdToDisplayName[defaultRoleId]
 	execCmds := map[string]func(*discordgo.Session, *discordgo.InteractionCreate){}
 	addNonEmpty(execCmds, applyName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		membersCmd(s, i, cmdChannelSender, applyName, infos, &cmdMonitor, func(guildMembers []*discordgo.Member) int {
-			return applyPrefixes(s, guildMembers, infos)
+		membersCmd(s, i, cmdChannelSender, applyName, infos, func(guildMembers []*discordgo.Member) int {
+			return applyPrefixes(s, guildMembers, infos, &userMonitor)
 		})
 	})
 	addNonEmpty(execCmds, cleanName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		membersCmd(s, i, cmdChannelSender, cleanName, infos, &cmdMonitor, func(guildMembers []*discordgo.Member) int {
-			return cleanPrefixes(s, guildMembers, infos)
+		membersCmd(s, i, cmdChannelSender, cleanName, infos, func(guildMembers []*discordgo.Member) int {
+			return cleanPrefixes(s, guildMembers, infos, &userMonitor)
 		})
 	})
 	addNonEmpty(execCmds, resetName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		addRoleCmd(s, i, defaultRoleId, defaultRoleDisplayName, infos, &cmdMonitor)
+		addRoleCmd(s, i, defaultRoleId, defaultRoleDisplayName, infos, &userMonitor)
 	})
 	addNonEmpty(execCmds, countName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		countRoleCmd(s, i, countFilter, countFilterRoleIds, infos)
@@ -327,7 +326,7 @@ func main() {
 		addedRoleId := cmdAndRoleId[1]
 		addedRoleDisplayName := roleIdToDisplayName[addedRoleId]
 		execCmds[cmdAndRoleId[0]] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			addRoleCmd(s, i, addedRoleId, addedRoleDisplayName, infos, &cmdMonitor)
+			addRoleCmd(s, i, addedRoleId, addedRoleDisplayName, infos, &userMonitor)
 		}
 	}
 	// for GC cleaning

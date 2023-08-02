@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -46,7 +47,41 @@ type GuildAndConfInfo struct {
 	roleIdToPrefix      map[string]string
 	prefixes            []string
 	roleIdToDisplayName map[string]string
-	msgs                [10]string
+	msgs                [9]string
+}
+
+type IdMonitor struct {
+	processing map[string]empty
+	mutex      sync.RWMutex
+}
+
+func MakeIdMonitor() IdMonitor {
+	return IdMonitor{processing: map[string]empty{}}
+}
+
+func (m *IdMonitor) StopProcessing(id string) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	delete(m.processing, id)
+}
+
+func (m *IdMonitor) StartProcessing(id string) bool {
+	m.mutex.RLock()
+	_, processing := m.processing[id]
+	m.mutex.RUnlock()
+	if processing {
+		return false
+	}
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	// verify there was no change between lock
+	_, processing = m.processing[id]
+	if processing {
+		return false
+	}
+	m.processing[id] = empty{}
+	return true
 }
 
 type ChannelSenderManager map[string]chan<- string

@@ -24,37 +24,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/bwmarrin/discordgo"
 )
-
-type Monitor struct {
-	running bool
-	mutex   sync.RWMutex
-}
-
-func (m *Monitor) Running() bool {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	return m.running
-}
-
-func (m *Monitor) Stop() {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	m.running = false
-}
-
-func (m *Monitor) Start() bool {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	if m.running {
-		return false
-	}
-	m.running = true
-	return true
-}
 
 func readPrefixConfig(filePathName string) (map[string]string, []string, [][2]string, []string) {
 	file, err := os.Open(os.Getenv(filePathName))
@@ -100,14 +72,10 @@ func readPrefixConfig(filePathName string) (map[string]string, []string, [][2]st
 	return nameToPrefix, prefixes, cmdAndNames, specialRoles
 }
 
-func membersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- string, cmdName string, infos GuildAndConfInfo, cmdMonitor *Monitor, cmdEffect func([]*discordgo.Member) int) {
+func membersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- string, cmdName string, infos GuildAndConfInfo, cmdEffect func([]*discordgo.Member) int) {
 	returnMsg := infos.msgs[0]
 	if idInSet(i.Member.Roles, infos.authorizedRoleIds) {
-		if cmdMonitor.Start() {
-			go processMembers(s, messageSender, cmdName, infos, cmdMonitor, cmdEffect)
-		} else {
-			returnMsg = infos.msgs[8]
-		}
+		go processMembers(s, messageSender, cmdName, infos, cmdEffect)
 	} else {
 		returnMsg = infos.msgs[1]
 	}
@@ -118,8 +86,7 @@ func membersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSen
 	})
 }
 
-func processMembers(s *discordgo.Session, messageSender chan<- string, cmdName string, infos GuildAndConfInfo, cmdMonitor *Monitor, cmdEffect func([]*discordgo.Member) int) {
-	defer cmdMonitor.Stop()
+func processMembers(s *discordgo.Session, messageSender chan<- string, cmdName string, infos GuildAndConfInfo, cmdEffect func([]*discordgo.Member) int) {
 	msg := infos.msgs[2]
 	if guildMembers, err := s.GuildMembers(infos.guildId, "", 1000); err == nil {
 		if counterError := cmdEffect(guildMembers); counterError == 0 {
@@ -167,11 +134,14 @@ func cleanPrefixInNick(nick string, prefixes []string) string {
 	return nick
 }
 
-func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos GuildAndConfInfo) int {
+func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos GuildAndConfInfo, userMonitor *IdMonitor) int {
 	counterError := 0
 	for _, guildMember := range guildMembers {
-		// messageSender is nil, so beforeUpdate can be nil
-		counterError += applyPrefix(s, nil, guildMember, infos)
+		userId := guildMember.User.ID
+		if userMonitor.StartProcessing(userId) {
+			counterError += applyPrefix(s, nil, guildMember, infos)
+			userMonitor.StopProcessing(userId)
+		}
 	}
 	return counterError
 }
@@ -212,10 +182,10 @@ func applyPrefix(s *discordgo.Session, messageSender chan<- string, member *disc
 	return counterError
 }
 
-func cleanPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos GuildAndConfInfo) int {
+func cleanPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos GuildAndConfInfo, userMonitor *IdMonitor) int {
 	counterError := 0
 	for _, guildMember := range guildMembers {
-		if userId := guildMember.User.ID; userId != infos.ownerId {
+		if userId := guildMember.User.ID; userId != infos.ownerId && userMonitor.StartProcessing(userId) {
 			nick := extractNick(guildMember)
 			newNick := cleanPrefixInNick(nick, infos.prefixes)
 			if newNick != nick {
@@ -224,6 +194,7 @@ func cleanPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos
 					counterError++
 				}
 			}
+			userMonitor.StopProcessing(userId)
 		}
 	}
 	return counterError
