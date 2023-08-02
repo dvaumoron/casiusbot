@@ -25,7 +25,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleId string, addedRoleDisplayName string, infos GuildAndConfInfo, userMonitor *IdMonitor) {
+func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleId string, infos GuildAndConfInfo, userMonitor *IdMonitor) {
 	returnMsg := infos.msgs[0]
 	if idInSet(i.Member.Roles, infos.forbiddenRoleIds) {
 		returnMsg = infos.msgs[1]
@@ -33,42 +33,11 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 		returnMsg = infos.msgs[9]
 	} else if userMonitor.StartProcessing(userId) {
 		defer userMonitor.StopProcessing(userId)
-		toAdd := true
-		counterError := 0
-		for _, roleId := range i.Member.Roles {
-			if roleId == addedRoleId {
-				toAdd = false
-				continue
-			}
-
-			if _, ok := infos.cmdRoleIds[roleId]; ok {
-				if err := s.GuildMemberRoleRemove(infos.guildId, userId, roleId); err != nil {
-					log.Println("Prefix role removing failed :", err)
-					counterError++
-				}
-			}
-		}
-
-		if toAdd {
-			if err := s.GuildMemberRoleAdd(infos.guildId, userId, addedRoleId); err != nil {
-				log.Println("Prefix role addition failed :", err)
-				counterError++
-			}
-		}
 
 		messageQueue := make(chan string, 1)
-		member, err := s.GuildMember(infos.guildId, userId)
-		if err == nil {
-			counterError += applyPrefix(s, messageQueue, member, infos, true)
-			if counterError == 0 {
-				returnMsg = <-messageQueue
-			}
+		if counterError := addRole(s, messageQueue, i.Member, addedRoleId, infos, true); counterError == 0 {
+			returnMsg = <-messageQueue
 		} else {
-			log.Println("Cannot retrieve member :", err)
-			counterError++
-		}
-
-		if counterError != 0 {
 			returnMsg = infos.msgs[8] + strconv.Itoa(counterError)
 		}
 	}
@@ -77,6 +46,41 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{Content: returnMsg},
 	})
+}
+
+func addRole(s *discordgo.Session, messageSender chan<- string, member *discordgo.Member, addedRoleId string, infos GuildAndConfInfo, forceSend bool) int {
+	toAdd := true
+	counterError := 0
+	userId := member.User.ID
+	for _, roleId := range member.Roles {
+		if roleId == addedRoleId {
+			toAdd = false
+			continue
+		}
+
+		if _, ok := infos.cmdRoleIds[roleId]; ok {
+			if err := s.GuildMemberRoleRemove(infos.guildId, userId, roleId); err != nil {
+				log.Println("Prefix role removing failed :", err)
+				counterError++
+			}
+		}
+	}
+
+	if toAdd {
+		if err := s.GuildMemberRoleAdd(infos.guildId, userId, addedRoleId); err != nil {
+			log.Println("Prefix role addition failed :", err)
+			counterError++
+		}
+	}
+
+	member, err := s.GuildMember(infos.guildId, userId)
+	if err == nil {
+		counterError += applyPrefix(s, messageSender, member, infos, forceSend)
+	} else {
+		log.Println("Cannot retrieve member :", err)
+		counterError++
+	}
+	return counterError
 }
 
 func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, roleCountExtracter func([]*discordgo.Member) map[string]int, infos GuildAndConfInfo) {
@@ -117,4 +121,15 @@ func extractRoleCountWithFilter(guildMembers []*discordgo.Member, filterRoleIds 
 		}
 	}
 	return roleIdToCount
+}
+
+func resetRoleAll(s *discordgo.Session, guildMembers []*discordgo.Member, infos GuildAndConfInfo, userMonitor *IdMonitor) int {
+	counterError := 0
+	for _, guildMember := range guildMembers {
+		if userId := guildMember.User.ID; userId != infos.ownerId && userMonitor.StartProcessing(userId) {
+			counterError += addRole(s, nil, guildMember, infos.defaultRoleId, infos, false)
+			userMonitor.StopProcessing(userId)
+		}
+	}
+	return counterError
 }

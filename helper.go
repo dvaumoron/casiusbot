@@ -197,6 +197,34 @@ func addNonEmpty[T any](m map[string]T, name string, value T) {
 	}
 }
 
+func membersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- string, cmdName string, infos GuildAndConfInfo, cmdEffect func([]*discordgo.Member) int) {
+	returnMsg := infos.msgs[0]
+	if idInSet(i.Member.Roles, infos.authorizedRoleIds) {
+		go processMembers(s, messageSender, cmdName, infos, cmdEffect)
+	} else {
+		returnMsg = infos.msgs[1]
+	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Content: returnMsg},
+	})
+}
+
+func processMembers(s *discordgo.Session, messageSender chan<- string, cmdName string, infos GuildAndConfInfo, cmdEffect func([]*discordgo.Member) int) {
+	msg := infos.msgs[2]
+	if guildMembers, err := s.GuildMembers(infos.guildId, "", 1000); err == nil {
+		if counterError := cmdEffect(guildMembers); counterError == 0 {
+			msg = infos.msgs[7]
+		} else {
+			msg = infos.msgs[3] + strconv.Itoa(counterError)
+		}
+	} else {
+		log.Println("Cannot retrieve guild members (3) :", err)
+	}
+	messageSender <- strings.ReplaceAll(msg, "{{cmd}}", cmdName)
+}
+
 func extractNick(member *discordgo.Member) string {
 	nickName := member.Nick
 	if nickName == "" {

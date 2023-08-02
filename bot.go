@@ -88,6 +88,7 @@ func main() {
 	applyName, cmds := appendCommand(cmds, "APPLY_CMD", "DESCRIPTION_APPLY_CMD")
 	cleanName, cmds := appendCommand(cmds, "CLEAN_CMD", "DESCRIPTION_CLEAN_CMD")
 	resetName, cmds := appendCommand(cmds, "RESET_CMD", "DESCRIPTION_RESET_CMD")
+	resetAllName, cmds := appendCommand(cmds, "RESET_ALL_CMD", "DESCRIPTION_RESET_ALL_CMD")
 	countName, cmds := appendCommand(cmds, "COUNT_CMD", "DESCRIPTION_COUNT_CMD")
 	roleCmdDesc := requireConf("DESCRIPTION_ROLE_CMD") + " "
 
@@ -304,7 +305,6 @@ func main() {
 	// for GC cleaning
 	joiningRole = ""
 
-	defaultRoleDisplayName := roleIdToDisplayName[defaultRoleId]
 	execCmds := map[string]func(*discordgo.Session, *discordgo.InteractionCreate){}
 	addNonEmpty(execCmds, applyName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		membersCmd(s, i, cmdChannelSender, applyName, infos, func(guildMembers []*discordgo.Member) int {
@@ -317,7 +317,12 @@ func main() {
 		})
 	})
 	addNonEmpty(execCmds, resetName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		addRoleCmd(s, i, defaultRoleId, defaultRoleDisplayName, infos, &userMonitor)
+		addRoleCmd(s, i, defaultRoleId, infos, &userMonitor)
+	})
+	addNonEmpty(execCmds, resetAllName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		membersCmd(s, i, cmdChannelSender, resetAllName, infos, func(guildMembers []*discordgo.Member) int {
+			return resetRoleAll(s, guildMembers, infos, &userMonitor)
+		})
 	})
 
 	roleCountExtracter := extractRoleCount
@@ -332,9 +337,8 @@ func main() {
 
 	for _, cmdAndRoleId := range cmdAndRoleIds {
 		addedRoleId := cmdAndRoleId[1]
-		addedRoleDisplayName := roleIdToDisplayName[addedRoleId]
 		execCmds[cmdAndRoleId[0]] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			addRoleCmd(s, i, addedRoleId, addedRoleDisplayName, infos, &userMonitor)
+			addRoleCmd(s, i, addedRoleId, infos, &userMonitor)
 		}
 	}
 	// for GC cleaning
