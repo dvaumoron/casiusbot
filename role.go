@@ -73,8 +73,7 @@ func addRole(s *discordgo.Session, messageSender chan<- string, member *discordg
 		}
 	}
 
-	member, err := s.GuildMember(infos.guildId, userId)
-	if err == nil {
+	if member, err := s.GuildMember(infos.guildId, userId); err == nil {
 		counterError += applyPrefix(s, messageSender, member, infos, forceSend)
 	} else {
 		log.Println("Cannot retrieve member :", err)
