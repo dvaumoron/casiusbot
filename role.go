@@ -84,15 +84,15 @@ func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, filterRo
 		if len(filterRoleIds) == 0 {
 			for _, guildMember := range guildMembers {
 				for _, roleId := range guildMember.Roles {
-					if _, ok := filterRoleIds[roleId]; ok {
-						roleIdToCount[roleId]++
-					}
+					roleIdToCount[roleId]++
 				}
 			}
 		} else {
 			for _, guildMember := range guildMembers {
 				for _, roleId := range guildMember.Roles {
-					roleIdToCount[roleId]++
+					if _, ok := filterRoleIds[roleId]; ok {
+						roleIdToCount[roleId]++
+					}
 				}
 			}
 		}
