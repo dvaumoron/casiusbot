@@ -281,7 +281,7 @@ func main() {
 		return // to allow defer
 	}
 
-	channelManager := ChannelSenderManager{session: session}
+	channelManager := MakeChannelSenderManager(session)
 	channelManager.AddChannel(targetPrefixChannelId)
 	channelManager.AddChannel(targetCmdChannelId)
 	channelManager.AddChannel(targetNewsChannelId)

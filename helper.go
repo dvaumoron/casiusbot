@@ -90,6 +90,10 @@ type ChannelSenderManager struct {
 	session  *discordgo.Session
 }
 
+func MakeChannelSenderManager(session *discordgo.Session) ChannelSenderManager {
+	return ChannelSenderManager{channels: map[string]chan<- string{}, session: session}
+}
+
 func (m ChannelSenderManager) AddChannel(channelId string) {
 	if channelId != "" {
 		if _, ok := m.channels[channelId]; !ok {
