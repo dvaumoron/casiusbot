@@ -95,7 +95,7 @@ func processMembers(s *discordgo.Session, messageSender chan<- string, cmdName s
 			msg = infos.msgs[3] + strconv.Itoa(counterError)
 		}
 	} else {
-		log.Println("Members retrieving failed :", err)
+		log.Println("Cannot retrieve guild members (3) :", err)
 	}
 	messageSender <- strings.ReplaceAll(msg, "{{cmd}}", cmdName)
 }

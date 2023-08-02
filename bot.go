@@ -44,9 +44,10 @@ func main() {
 	prefixMsg := strings.TrimSpace(os.Getenv("MESSAGE_PREFIX"))
 	noChangeMsg := strings.TrimSpace(os.Getenv("MESSAGE_NO_CHANGE"))
 	endedCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_ENDED"))
+	ownerMsg := strings.TrimSpace(os.Getenv("MESSAGE_OWNER"))
 	msgs := [...]string{
 		okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg, prefixMsg,
-		noChangeMsg, endedCmdMsg, strings.ReplaceAll(errPartialCmdMsg, "{{cmd}} ", ""),
+		noChangeMsg, endedCmdMsg, strings.ReplaceAll(errPartialCmdMsg, "{{cmd}} ", ""), ownerMsg,
 	}
 
 	guildId := requireConf("GUILD_ID")
@@ -266,7 +267,7 @@ func main() {
 
 	guildMembers, err := session.GuildMembers(guildId, "", 1000)
 	if err != nil {
-		log.Println("Cannot retrieve members of the guild :", err)
+		log.Println("Cannot retrieve guild members :", err)
 		return // to allow defer
 	}
 
@@ -318,8 +319,15 @@ func main() {
 	addNonEmpty(execCmds, resetName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		addRoleCmd(s, i, defaultRoleId, defaultRoleDisplayName, infos, &userMonitor)
 	})
+
+	roleCountExtracter := extractRoleCount
+	if len(countFilterRoleIds) != 0 {
+		roleCountExtracter = func(guildMembers []*discordgo.Member) map[string]int {
+			return extractRoleCountWithFilter(guildMembers, countFilterRoleIds)
+		}
+	}
 	addNonEmpty(execCmds, countName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		countRoleCmd(s, i, countFilterRoleIds, infos)
+		countRoleCmd(s, i, roleCountExtracter, infos)
 	})
 
 	for _, cmdAndRoleId := range cmdAndRoleIds {

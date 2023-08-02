@@ -47,7 +47,7 @@ type GuildAndConfInfo struct {
 	roleIdToPrefix      map[string]string
 	prefixes            []string
 	roleIdToDisplayName map[string]string
-	msgs                [9]string
+	msgs                [10]string
 }
 
 type IdMonitor struct {

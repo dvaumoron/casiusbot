@@ -29,7 +29,9 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 	returnMsg := infos.msgs[0]
 	if idInSet(i.Member.Roles, infos.forbiddenRoleIds) {
 		returnMsg = infos.msgs[1]
-	} else if userId := i.Member.User.ID; userId != infos.ownerId && userMonitor.StartProcessing(userId) {
+	} else if userId := i.Member.User.ID; userId == infos.ownerId {
+		returnMsg = infos.msgs[9]
+	} else if userMonitor.StartProcessing(userId) {
 		defer userMonitor.StopProcessing(userId)
 		toAdd := true
 		counterError := 0
@@ -62,7 +64,7 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 				returnMsg = <-messageQueue
 			}
 		} else {
-			log.Println("Retrieving member failed :", err)
+			log.Println("Cannot retrieve member :", err)
 			counterError++
 		}
 
@@ -77,37 +79,42 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 	})
 }
 
-func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, filterRoleIds map[string]empty, infos GuildAndConfInfo) {
+func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, roleCountExtracter func([]*discordgo.Member) map[string]int, infos GuildAndConfInfo) {
 	returnMsg := infos.msgs[2]
 	if guildMembers, err := s.GuildMembers(i.GuildID, "", 1000); err == nil {
-		roleIdToCount := map[string]int{}
-		if len(filterRoleIds) == 0 {
-			for _, guildMember := range guildMembers {
-				for _, roleId := range guildMember.Roles {
-					roleIdToCount[roleId]++
-				}
-			}
-		} else {
-			for _, guildMember := range guildMembers {
-				for _, roleId := range guildMember.Roles {
-					if _, ok := filterRoleIds[roleId]; ok {
-						roleIdToCount[roleId]++
-					}
-				}
-			}
-		}
-
 		roleNameToCountStr := map[string]string{}
-		for roleId, count := range roleIdToCount {
+		for roleId, count := range roleCountExtracter(guildMembers) {
 			roleNameToCountStr[infos.roleIdToDisplayName[roleId]] = strconv.Itoa(count)
 		}
 		returnMsg = buildMsgWithNameValueList(infos.msgs[4], roleNameToCountStr)
 	} else {
-		log.Println("Members retrieving failed (2) :", err)
+		log.Println("Cannot retrieve guild members (2) :", err)
 	}
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{Content: returnMsg},
 	})
+}
+
+func extractRoleCount(guildMembers []*discordgo.Member) map[string]int {
+	roleIdToCount := map[string]int{}
+	for _, guildMember := range guildMembers {
+		for _, roleId := range guildMember.Roles {
+			roleIdToCount[roleId]++
+		}
+	}
+	return roleIdToCount
+}
+
+func extractRoleCountWithFilter(guildMembers []*discordgo.Member, filterRoleIds map[string]empty) map[string]int {
+	roleIdToCount := map[string]int{}
+	for _, guildMember := range guildMembers {
+		for _, roleId := range guildMember.Roles {
+			if _, ok := filterRoleIds[roleId]; ok {
+				roleIdToCount[roleId]++
+			}
+		}
+	}
+	return roleIdToCount
 }
