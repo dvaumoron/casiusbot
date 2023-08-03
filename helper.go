@@ -22,7 +22,6 @@ import (
 	"errors"
 	"log"
 	"math/rand"
-	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -127,11 +126,11 @@ func idInSet(ids []string, idSet map[string]empty) bool {
 	return false
 }
 
-func appendCommand(cmds []*discordgo.ApplicationCommand, cmdConfName string, cmdDescConfName string) (string, []*discordgo.ApplicationCommand) {
-	cmdName := strings.TrimSpace(os.Getenv(cmdConfName))
+func appendCommand(cmds []*discordgo.ApplicationCommand, config Config, cmdConfName string, cmdDescConfName string) (string, []*discordgo.ApplicationCommand) {
+	cmdName := config.getString(cmdConfName)
 	if cmdName != "" {
 		cmds = append(cmds, &discordgo.ApplicationCommand{
-			Name: cmdName, Description: requireConf(cmdDescConfName),
+			Name: cmdName, Description: config.require(cmdDescConfName),
 		})
 	}
 	return cmdName, cmds

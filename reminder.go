@@ -26,9 +26,9 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func buildReminderPrefix(reminderConfName string, guildId string) string {
+func buildReminderPrefix(config Config, reminderConfName string, guildId string) string {
 	var reminderBuilder strings.Builder
-	reminderBuilder.WriteString(requireConf(reminderConfName))
+	reminderBuilder.WriteString(config.require(reminderConfName))
 	reminderBuilder.WriteString("\nhttps://discord.com/events/")
 	reminderBuilder.WriteString(guildId)
 	reminderBuilder.WriteByte('/')

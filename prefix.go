@@ -19,57 +19,11 @@
 package main
 
 import (
-	"bufio"
 	"log"
-	"os"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
 )
-
-func readPrefixConfig(filePathName string) (map[string]string, []string, [][2]string, []string) {
-	file, err := os.Open(os.Getenv(filePathName))
-	if err != nil {
-		log.Fatalln("Cannot read the configuration file :", err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	nameToPrefix := map[string]string{}
-	prefixes := []string{}
-	cmdAndNames := [][2]string{}
-	specialRoles := []string{}
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line != "" && line[0] != '#' {
-			splitted := strings.Split(line, ":")
-			if splittedSize := len(splitted); splittedSize > 1 {
-				name := strings.TrimSpace(splitted[0])
-				if name != "" {
-					prefix := strings.TrimSpace(splitted[1]) + " "
-
-					nameToPrefix[name] = prefix
-					prefixes = append(prefixes, prefix)
-
-					if splittedSize > 2 {
-						cmd := strings.TrimSpace(splitted[2])
-						if cmd == "" {
-							log.Fatalln("Malformed configuration file, empty command")
-						}
-						cmdAndNames = append(cmdAndNames, [2]string{cmd, name})
-					} else {
-						specialRoles = append(specialRoles, name)
-					}
-				}
-			}
-		}
-	}
-
-	if err = scanner.Err(); err != nil {
-		log.Fatalln("Cannot parse the configuration file :", err)
-	}
-	return nameToPrefix, prefixes, cmdAndNames, specialRoles
-}
 
 func transformNick(nickName string, roleIds []string, info GuildAndConfInfo) (string, string, bool, bool) {
 	cleanedNickName := cleanPrefixInNick(nickName, info.prefixes)

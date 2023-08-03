@@ -26,73 +26,79 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/joho/godotenv"
 )
 
 func main() {
-	if godotenv.Overload() == nil {
-		log.Println("Loaded .env file")
+	config, err := readConfig()
+	if err != nil {
+		log.Println(err)
+		return
 	}
 
-	roleNameToPrefix, prefixes, cmdAndRoleNames, specialRoles := readPrefixConfig("PREFIX_FILE_PATH")
+	roleNameToPrefix, prefixes, cmdAndRoleNames, specialRoles := config.readPrefixConfig("PREFIX_FILE_PATH")
 
-	okCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_OK"))
-	errUnauthorizedCmdMsg := buildMsgWithNameValueList(strings.TrimSpace(os.Getenv("MESSAGE_CMD_UNAUTHORIZED")), roleNameToPrefix)
-	errGlobalCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_GLOBAL_ERROR"))
-	errPartialCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_PARTIAL_ERROR")) + " "
-	countCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_COUNT"))
-	prefixMsg := strings.TrimSpace(os.Getenv("MESSAGE_PREFIX"))
-	noChangeMsg := strings.TrimSpace(os.Getenv("MESSAGE_NO_CHANGE"))
-	endedCmdMsg := strings.TrimSpace(os.Getenv("MESSAGE_CMD_ENDED"))
-	ownerMsg := strings.TrimSpace(os.Getenv("MESSAGE_OWNER"))
+	okCmdMsg := config.getString("MESSAGE_CMD_OK")
+	errUnauthorizedCmdMsg := buildMsgWithNameValueList(config.getString("MESSAGE_CMD_UNAUTHORIZED"), roleNameToPrefix)
+	errGlobalCmdMsg := config.getString("MESSAGE_CMD_GLOBAL_ERROR")
+	errPartialCmdMsg := config.getString("MESSAGE_CMD_PARTIAL_ERROR") + " "
+	countCmdMsg := config.getString("MESSAGE_CMD_COUNT")
+	prefixMsg := config.getString("MESSAGE_PREFIX")
+	noChangeMsg := config.getString("MESSAGE_NO_CHANGE")
+	endedCmdMsg := config.getString("MESSAGE_CMD_ENDED")
+	ownerMsg := config.getString("MESSAGE_OWNER")
 	msgs := [...]string{
 		okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg, prefixMsg,
 		noChangeMsg, endedCmdMsg, strings.ReplaceAll(errPartialCmdMsg, "{{cmd}} ", ""), ownerMsg,
 	}
 
-	guildId := requireConf("GUILD_ID")
-	joiningRole := strings.TrimSpace(os.Getenv("JOINING_ROLE"))
-	defaultRole := requireConf("DEFAULT_ROLE")
-	gameList := getTrimmedSlice("GAME_LIST")
+	guildId := config.require("GUILD_ID")
+	joiningRole := config.getString("JOINING_ROLE")
+	defaultRole := config.require("DEFAULT_ROLE")
+	gameList := config.getSlice("GAME_LIST")
 	updateGameInterval := 30 * time.Second
-	feedURLs := getTrimmedSlice("FEED_URLS")
-	checkInterval := getAndParseDurationSec("CHECK_INTERVAL")
-	reminderDelays := getAndParseDelayMins("REMINDER_BEFORES")
-	reminderPrefix := buildReminderPrefix("REMINDER_TEXT", guildId)
+	feedURLs := config.getSlice("FEED_URLS")
+	checkInterval := config.getDurationSec("CHECK_INTERVAL")
+	reminderDelays := config.getDelayMins("REMINDER_BEFORES")
+	reminderPrefix := buildReminderPrefix(config, "REMINDER_TEXT", guildId)
 
-	targetReminderChannelName := requireConf("TARGET_REMINDER_CHANNEL")
-	targetPrefixChannelName := strings.TrimSpace(os.Getenv("TARGET_PREFIX_CHANNEL"))
-	targetCmdChannelName := strings.TrimSpace(os.Getenv("TARGET_CMD_CHANNEL"))
+	targetReminderChannelName := config.require("TARGET_REMINDER_CHANNEL")
+	targetPrefixChannelName := config.getString("TARGET_PREFIX_CHANNEL")
+	targetCmdChannelName := config.getString("TARGET_CMD_CHANNEL")
 	targetNewsChannelName := ""
 
 	if checkInterval == 0 {
 		log.Fatalln("CHECK_INTERVAL is required")
 	}
 
+	var selectors []string
+	var checkRules []string
 	var translater Translater
 	feedNumber := len(feedURLs)
 	feedActived := feedNumber != 0
 	if feedActived {
-		targetNewsChannelName = requireConf("TARGET_NEWS_CHANNEL")
-		if deepLToken := strings.TrimSpace(os.Getenv("DEEPL_TOKEN")); deepLToken != "" {
-			deepLUrl := requireConf("DEEPL_API_URL")
-			sourceLang := strings.TrimSpace(os.Getenv("TRANSLATE_SOURCE_LANG"))
-			targetLang := requireConf("TRANSLATE_TARGET_LANG")
-			messageError := requireConf("MESSAGE_TRANSLATE_ERROR")
-			messageLimit := requireConf("MESSAGE_TRANSLATE_LIMIT")
+		selectors = config.getSlice("FEED_TRANSLATE_SELECTORS")
+		checkRules = config.getSlice("FEED_LINK_CHECKERS")
+
+		targetNewsChannelName = config.require("TARGET_NEWS_CHANNEL")
+		if deepLToken := config.getString("DEEPL_TOKEN"); deepLToken != "" {
+			deepLUrl := config.require("DEEPL_API_URL")
+			sourceLang := config.getString("TRANSLATE_SOURCE_LANG")
+			targetLang := config.require("TRANSLATE_TARGET_LANG")
+			messageError := config.require("MESSAGE_TRANSLATE_ERROR")
+			messageLimit := config.require("MESSAGE_TRANSLATE_LIMIT")
 			translater = makeDeepLClient(deepLUrl, deepLToken, sourceLang, targetLang, messageError, messageLimit)
 		}
 	}
 
 	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+4)
-	applyName, cmds := appendCommand(cmds, "APPLY_CMD", "DESCRIPTION_APPLY_CMD")
-	cleanName, cmds := appendCommand(cmds, "CLEAN_CMD", "DESCRIPTION_CLEAN_CMD")
-	resetName, cmds := appendCommand(cmds, "RESET_CMD", "DESCRIPTION_RESET_CMD")
-	resetAllName, cmds := appendCommand(cmds, "RESET_ALL_CMD", "DESCRIPTION_RESET_ALL_CMD")
-	countName, cmds := appendCommand(cmds, "COUNT_CMD", "DESCRIPTION_COUNT_CMD")
-	roleCmdDesc := requireConf("DESCRIPTION_ROLE_CMD")
+	applyName, cmds := appendCommand(cmds, config, "APPLY_CMD", "DESCRIPTION_APPLY_CMD")
+	cleanName, cmds := appendCommand(cmds, config, "CLEAN_CMD", "DESCRIPTION_CLEAN_CMD")
+	resetName, cmds := appendCommand(cmds, config, "RESET_CMD", "DESCRIPTION_RESET_CMD")
+	resetAllName, cmds := appendCommand(cmds, config, "RESET_ALL_CMD", "DESCRIPTION_RESET_ALL_CMD")
+	countName, cmds := appendCommand(cmds, config, "COUNT_CMD", "DESCRIPTION_COUNT_CMD")
+	roleCmdDesc := config.require("DESCRIPTION_ROLE_CMD")
 
-	session, err := discordgo.New("Bot " + requireConf("BOT_TOKEN"))
+	session, err := discordgo.New("Bot " + config.require("BOT_TOKEN"))
 	if err != nil {
 		log.Fatalln("Cannot create the bot :", err)
 	}
@@ -204,12 +210,12 @@ func main() {
 	// for GC cleaning
 	cmdAndRoleNames = nil
 
-	authorizedRoleIds, err := getIdSet("AUTHORIZED_ROLES", roleNameToId)
+	authorizedRoleIds, err := config.getIdSet("AUTHORIZED_ROLES", roleNameToId)
 	if err != nil {
 		log.Println(err)
 		return // to allow defer
 	}
-	forbiddenRoleIds, err := getIdSet("FORBIDDEN_ROLES", roleNameToId)
+	forbiddenRoleIds, err := config.getIdSet("FORBIDDEN_ROLES", roleNameToId)
 	if err != nil {
 		log.Println(err)
 		return // to allow defer
@@ -223,7 +229,7 @@ func main() {
 	// for GC cleaning
 	defaultRole = ""
 
-	ignoredRoleIds, err := getIdSet("IGNORED_ROLES", roleNameToId)
+	ignoredRoleIds, err := config.getIdSet("IGNORED_ROLES", roleNameToId)
 	if err != nil {
 		log.Println(err)
 		return // to allow defer
@@ -247,9 +253,9 @@ func main() {
 	specialRoles = nil
 
 	var countFilterRoleIds map[string]empty
-	switch countFilterType := strings.TrimSpace(os.Getenv("COUNT_FILTER_TYPE")); countFilterType {
+	switch countFilterType := config.getString("COUNT_FILTER_TYPE"); countFilterType {
 	case "list":
-		countFilterRoleIds, err = getIdSet("COUNT_FILTER_ROLES", roleNameToId)
+		countFilterRoleIds, err = config.getIdSet("COUNT_FILTER_ROLES", roleNameToId)
 		if err != nil {
 			log.Println(err)
 			return // to allow defer
@@ -371,11 +377,11 @@ func main() {
 	tickers := launchTickers(feedNumber+1, checkInterval)
 
 	startTime := time.Now().Add(-checkInterval)
-	if backwardLoading := getAndParseDurationSec("INITIAL_BACKWARD_LOADING"); backwardLoading != 0 {
+	if backwardLoading := config.getDurationSec("INITIAL_BACKWARD_LOADING"); backwardLoading != 0 {
 		startTime = startTime.Add(-backwardLoading)
 	}
 
-	bgReadMultipleRSS(channelManager.Get(targetNewsChannelId), feedURLs, translater, startTime, tickers)
+	bgReadMultipleRSS(channelManager.Get(targetNewsChannelId), feedURLs, selectors, checkRules, translater, startTime, tickers)
 	go remindEvent(session, guildId, reminderDelays, channelManager.Get(targetReminderChannelId), reminderPrefix, startTime, tickers[feedNumber])
 
 	stop := make(chan os.Signal, 1)

@@ -30,15 +30,12 @@ type linkInfo struct {
 	description string
 }
 
-func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, translater Translater, startTime time.Time, tickers []chan time.Time) {
+func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, selectors []string, checkRules []string, translater Translater, startTime time.Time, tickers []chan time.Time) {
 	if len(feedURLs) == 0 {
 		return
 	}
 
-	selectors := getTrimmedSlice("FEED_TRANSLATE_SELECTORS")
 	selectorsSize := len(selectors)
-
-	checkRules := getTrimmedSlice("FEED_LINK_CHECKERS")
 	checkRulesSize := len(checkRules)
 
 	defaultLinkSender := createLinkSender(messageSender)
