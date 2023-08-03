@@ -90,7 +90,7 @@ func main() {
 	resetName, cmds := appendCommand(cmds, "RESET_CMD", "DESCRIPTION_RESET_CMD")
 	resetAllName, cmds := appendCommand(cmds, "RESET_ALL_CMD", "DESCRIPTION_RESET_ALL_CMD")
 	countName, cmds := appendCommand(cmds, "COUNT_CMD", "DESCRIPTION_COUNT_CMD")
-	roleCmdDesc := requireConf("DESCRIPTION_ROLE_CMD") + " "
+	roleCmdDesc := requireConf("DESCRIPTION_ROLE_CMD")
 
 	session, err := discordgo.New("Bot " + requireConf("BOT_TOKEN"))
 	if err != nil {
@@ -196,7 +196,7 @@ func main() {
 			return // to allow defer
 		}
 		cmds = append(cmds, &discordgo.ApplicationCommand{
-			Name: cmdAndRoleName[0], Description: roleCmdDesc + cmdAndRoleName[1],
+			Name: cmdAndRoleName[0], Description: strings.ReplaceAll(roleCmdDesc, "{{role}}", roleIdToDisplayName[roleId]),
 		})
 		cmdRoleIds[roleId] = empty{}
 		cmdAndRoleIds = append(cmdAndRoleIds, [2]string{cmdAndRoleName[0], roleId})
