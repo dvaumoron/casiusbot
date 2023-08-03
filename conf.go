@@ -21,12 +21,14 @@ package main
 import (
 	"bufio"
 	"errors"
+	"io"
 	"log"
 	"os"
 	"path"
 	"strings"
 	"time"
 
+	"gopkg.in/natefinch/lumberjack.v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -35,12 +37,22 @@ type Config struct {
 	data map[string]any
 }
 
+func initLog() {
+	log.SetOutput(io.MultiWriter(log.Writer(), &lumberjack.Logger{
+		Filename:   "casiusbot.log",
+		MaxSize:    1, // megabytes
+		MaxBackups: 5,
+		MaxAge:     28, //days
+	}))
+}
+
 func readConfig() (Config, error) {
 	confPath := "casiusbot.yaml"
 	if len(os.Args) > 1 {
 		confPath = os.Args[1]
 	}
 
+	log.Println("Load configuration from", confPath)
 	confBody, err := os.ReadFile(confPath)
 	if err != nil {
 		return Config{}, err

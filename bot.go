@@ -29,6 +29,8 @@ import (
 )
 
 func main() {
+	initLog()
+
 	config, err := readConfig()
 	if err != nil {
 		log.Println(err)
