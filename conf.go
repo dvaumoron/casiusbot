@@ -33,17 +33,8 @@ import (
 )
 
 type Config struct {
-	path string
-	data map[string]any
-}
-
-func initLog() {
-	log.SetOutput(io.MultiWriter(log.Writer(), &lumberjack.Logger{
-		Filename:   "casiusbot.log",
-		MaxSize:    1, // megabytes
-		MaxBackups: 5,
-		MaxAge:     28, //days
-	}))
+	basePath string
+	data     map[string]any
 }
 
 func readConfig() (Config, error) {
@@ -60,7 +51,26 @@ func readConfig() (Config, error) {
 
 	confData := map[string]any{}
 	err = yaml.Unmarshal(confBody, confData)
-	return Config{path: confPath, data: confData}, err
+	c := Config{basePath: path.Dir(confPath), data: confData}
+	c.initLog("casiusbot.log")
+	return c, err
+}
+
+func (c Config) updatePath(filePath string) string {
+	if path.IsAbs(filePath) {
+		// no change for absolute path
+		return filePath
+	}
+	return path.Join(c.basePath, filePath)
+}
+
+func (c Config) initLog(logPath string) {
+	log.SetOutput(io.MultiWriter(log.Writer(), &lumberjack.Logger{
+		Filename:   c.updatePath(logPath),
+		MaxSize:    1, // megabytes
+		MaxBackups: 5,
+		MaxAge:     28, //days
+	}))
 }
 
 func (c Config) getString(valueConfName string) string {
@@ -77,15 +87,7 @@ func (c Config) require(valueConfName string) string {
 }
 
 func (c Config) readPrefixConfig(filePathName string) (map[string]string, []string, [][2]string, []string) {
-	filePath := c.getString(filePathName)
-	if filePath != "" && filePath[0] != '/' {
-		if index := strings.LastIndexByte(c.path, '/'); index != -1 {
-			// main conf file and prefix conf file in the same place
-			filePath = path.Join(c.path[:index], filePath)
-		}
-	}
-
-	file, err := os.Open(filePath)
+	file, err := os.Open(c.updatePath(c.getString(filePathName)))
 	if err != nil {
 		log.Fatalln("Cannot read the configuration file :", err)
 	}

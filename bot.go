@@ -19,6 +19,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -29,8 +30,6 @@ import (
 )
 
 func main() {
-	initLog()
-
 	config, err := readConfig()
 	if err != nil {
 		log.Println(err)
@@ -388,7 +387,8 @@ func main() {
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
-	log.Println("Press Ctrl+C to exit")
+	log.Println("Started successfully")
+	fmt.Println("Press Ctrl+C to exit")
 	<-stop
 
 	for _, cmd := range cmds {
