@@ -25,14 +25,21 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func transformNick(nickName string, roleIds []string, info GuildAndConfInfo) (string, string, bool, bool) {
+const (
+	NOTHING uint8 = iota
+	ADD_DEFAULT
+	REMOVE_DEFAULT
+	REMOVE_ALL
+)
+
+func transformNick(nickName string, roleIds []string, info GuildAndConfInfo) (string, string, uint8) {
 	cleanedNickName := cleanPrefixInNick(nickName, info.prefixes)
 	nickName = cleanedNickName
 	usedRoleId, hasDefault, hasPrefix, notDone := "", false, false, true
 	for _, roleId := range roleIds {
 		if _, ok := info.forbiddenRoleIds[roleId]; ok {
 			// not adding prefix nor default role for user with forbidden role
-			return cleanedNickName, roleId, true, true
+			return cleanedNickName, roleId, REMOVE_ALL
 		}
 		if roleId == info.defaultRoleId {
 			hasDefault = true
@@ -48,7 +55,15 @@ func transformNick(nickName string, roleIds []string, info GuildAndConfInfo) (st
 			}
 		}
 	}
-	return nickName, usedRoleId, hasDefault, hasPrefix
+	action := NOTHING
+	if hasDefault {
+		if hasPrefix {
+			action = REMOVE_DEFAULT
+		}
+	} else if !hasPrefix {
+		action = ADD_DEFAULT
+	}
+	return nickName, usedRoleId, action
 }
 
 func cleanPrefixInNick(nick string, prefixes []string) string {
@@ -78,18 +93,26 @@ func applyPrefix(s *discordgo.Session, messageSender chan<- string, member *disc
 	roleIds := member.Roles
 	if userId != infos.ownerId && !idInSet(roleIds, infos.ignoredRoleIds) {
 		nick := extractNick(member)
-		newNick, usedRoleId, hasDefault, hasPrefix := transformNick(nick, roleIds, infos)
-		if hasDefault {
-			if hasPrefix {
-				if err := s.GuildMemberRoleRemove(infos.guildId, userId, infos.defaultRoleId); err != nil {
-					log.Println("Role removing failed :", err)
-					counterError++
-				}
-			}
-		} else if !hasPrefix {
+		newNick, usedRoleId, actionOnRoles := transformNick(nick, roleIds, infos)
+		switch actionOnRoles {
+		case ADD_DEFAULT:
 			if err := s.GuildMemberRoleAdd(infos.guildId, userId, infos.defaultRoleId); err != nil {
 				log.Println("Role addition failed :", err)
 				counterError++
+			}
+		case REMOVE_DEFAULT:
+			if err := s.GuildMemberRoleRemove(infos.guildId, userId, infos.defaultRoleId); err != nil {
+				log.Println("Role removing failed :", err)
+				counterError++
+			}
+		case REMOVE_ALL:
+			for _, roleId := range roleIds {
+				if _, ok := infos.roleIdToPrefix[roleId]; ok || roleId == infos.defaultRoleId {
+					if err := s.GuildMemberRoleRemove(infos.guildId, userId, roleId); err != nil {
+						log.Println("Role removing failed (2) :", err)
+						counterError++
+					}
+				}
 			}
 		}
 		if newNick == nick {

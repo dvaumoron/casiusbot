@@ -91,7 +91,7 @@ func main() {
 		}
 	}
 
-	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+4)
+	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+5)
 	applyName, cmds := appendCommand(cmds, config, "APPLY_CMD", "DESCRIPTION_APPLY_CMD")
 	cleanName, cmds := appendCommand(cmds, config, "CLEAN_CMD", "DESCRIPTION_CLEAN_CMD")
 	resetName, cmds := appendCommand(cmds, config, "RESET_CMD", "DESCRIPTION_RESET_CMD")

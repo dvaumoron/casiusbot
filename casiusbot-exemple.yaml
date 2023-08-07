@@ -8,10 +8,11 @@ PREFIX_FILE_PATH: "prefix-example.txt"
 # authorized roles could launch apply, clean and reset all commands
 AUTHORIZED_ROLES: []
 # forbidden roles are not allowed to launch role command to get a prefixed role
+# on set of a forbidden role on a user, casiusbot will remove other managed roles  
 FORBIDDEN_ROLES: []
 # without JOINING_ROLE, role addition on new guild member is disabled 
 JOINING_ROLE: ""
-# the default (used for reset command) shall not be in the forbidden roles
+# the default (used for reset command) shall not be in the forbidden roles and shall not be associated to a prefix
 DEFAULT_ROLE: ""
 # ignored roles are not affected by prefix rules
 IGNORED_ROLES: ["Bots"]
@@ -19,6 +20,7 @@ IGNORED_ROLES: ["Bots"]
 TARGET_REMINDER_CHANNEL: ""
 # without TARGET_PREFIX_CHANNEL, nickname update message are disabled
 TARGET_PREFIX_CHANNEL: ""
+# TARGET_CMD_CHANNEL is used to send message when apply, clean or reset all background work is finished 
 TARGET_CMD_CHANNEL: ""
 TARGET_NEWS_CHANNEL: ""
 
@@ -58,7 +60,7 @@ DESCRIPTION_RESET_ALL_CMD: "Reset role for all users"
 MESSAGE_CMD_OK: "Hey there ! Congratulations, you have lauched the command"
 MESSAGE_CMD_UNAUTHORIZED: "Sorry, you can not do that, the following role to prefix linking are active :"
 MESSAGE_CMD_GLOBAL_ERROR: "I got a problem trying to execute the command {{cmd}}"
-MESSAGE_CMD_PARTIAL_ERROR: "The {{cmd}} command was applied, mistakes :"
+MESSAGE_CMD_PARTIAL_ERROR: "The {{cmd}} command was applied, but encounter {{numError}} mistake(s)"
 MESSAGE_CMD_COUNT: "Hey there ! I have counted the number of users by roles :"
 MESSAGE_PREFIX: "{{old}} is now {{new}}"
 MESSAGE_NO_CHANGE: "{{user}}, you are already a {{role}}"

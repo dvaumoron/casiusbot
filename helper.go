@@ -32,6 +32,8 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+const numErrorPlaceHolder = "{{numError}}"
+
 type empty = struct{}
 
 type GuildAndConfInfo struct {
@@ -162,7 +164,7 @@ func processMembers(s *discordgo.Session, messageSender chan<- string, cmdName s
 		if counterError := cmdEffect(guildMembers); counterError == 0 {
 			msg = infos.msgs[7]
 		} else {
-			msg = infos.msgs[3] + strconv.Itoa(counterError)
+			msg = strings.ReplaceAll(infos.msgs[3], numErrorPlaceHolder, strconv.Itoa(counterError))
 		}
 	} else {
 		log.Println("Cannot retrieve guild members (3) :", err)

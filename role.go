@@ -21,6 +21,7 @@ package main
 import (
 	"log"
 	"strconv"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -38,7 +39,7 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 		if counterError := addRole(s, messageQueue, i.Member, addedRoleId, infos, true); counterError == 0 {
 			returnMsg = <-messageQueue
 		} else {
-			returnMsg = infos.msgs[8] + strconv.Itoa(counterError)
+			returnMsg = strings.ReplaceAll(infos.msgs[8], numErrorPlaceHolder, strconv.Itoa(counterError))
 		}
 	}
 
