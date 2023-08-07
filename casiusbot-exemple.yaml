@@ -13,8 +13,10 @@ FORBIDDEN_ROLES: []
 # without JOINING_ROLE, role addition on new guild member is disabled 
 JOINING_ROLE: ""
 # the default (used for reset command) shall not be in the forbidden roles and shall not be associated to a prefix
+# on set of a prefix role on a user, casiusbot will remove the default role
+# if casiusbot detect a user (on update) without prefix role, it will add the default role
 DEFAULT_ROLE: ""
-# ignored roles are not affected by prefix rules
+# ignored by casiusbot in the management of roles and prefixes
 IGNORED_ROLES: ["Bots"]
 
 TARGET_REMINDER_CHANNEL: ""
