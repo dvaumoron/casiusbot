@@ -41,7 +41,7 @@ func main() {
 	okCmdMsg := config.getString("MESSAGE_CMD_OK")
 	errUnauthorizedCmdMsg := buildMsgWithNameValueList(config.getString("MESSAGE_CMD_UNAUTHORIZED"), roleNameToPrefix)
 	errGlobalCmdMsg := config.getString("MESSAGE_CMD_GLOBAL_ERROR")
-	errPartialCmdMsg := config.getString("MESSAGE_CMD_PARTIAL_ERROR") + " "
+	errPartialCmdMsg := config.getString("MESSAGE_CMD_PARTIAL_ERROR")
 	countCmdMsg := config.getString("MESSAGE_CMD_COUNT")
 	prefixMsg := config.getString("MESSAGE_PREFIX")
 	noChangeMsg := config.getString("MESSAGE_NO_CHANGE")
