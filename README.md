@@ -7,7 +7,7 @@ A [Discord](https://discord.com/) bot, with the following features :
 - post reminder messages for scheduled events
 
 Optionally (when corresponding configuration is present) :
-- add a role on joining user (could be the default or a forbidden role)
+- add a role on joining user (could be the default, a prefix role or a forbidden role)
 - add a command to display a count of users by role
 - add a command to reset all users to default role
 - add commands to enforce or remove all prefixes (without changing roles)
