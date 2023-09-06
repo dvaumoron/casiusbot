@@ -56,9 +56,11 @@ func main() {
 	joiningRole := config.getString("JOINING_ROLE")
 	defaultRole := config.require("DEFAULT_ROLE")
 	gameList := config.getSlice("GAME_LIST")
-	updateGameInterval := 30 * time.Second
+	updateGameInterval := config.getDurationSec("UPDATE_GAME_INTERVAL")
 	feedURLs := config.getSlice("FEED_URLS")
 	checkInterval := config.getDurationSec("CHECK_INTERVAL")
+	activityPath := config.updatePath("ACTIVITY_FILE_PATH")
+	saveActivityInterval := config.getDurationSec("SAVE_ACTIVITY_INTERVAL")
 	reminderDelays := config.getDelayMins("REMINDER_BEFORES")
 	reminderPrefix := buildReminderPrefix(config, "REMINDER_TEXT", guildId)
 
@@ -98,6 +100,8 @@ func main() {
 	resetAllName, cmds := appendCommand(cmds, config, "RESET_ALL_CMD", "DESCRIPTION_RESET_ALL_CMD")
 	countName, cmds := appendCommand(cmds, config, "COUNT_CMD", "DESCRIPTION_COUNT_CMD")
 	roleCmdDesc := config.require("DESCRIPTION_ROLE_CMD")
+
+	// TODO command to retrieve activity member file
 
 	session, err := discordgo.New("Bot " + config.require("BOT_TOKEN"))
 	if err != nil {
@@ -309,6 +313,22 @@ func main() {
 			applyPrefix(s, prefixChannelSender, u.Member, infos, false)
 		}
 	})
+
+	if activityPath != "" && saveActivityInterval > 0 {
+		activityChannelSender := bgManageActivity(activityPath, saveActivityInterval)
+
+		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
+			if !idInSet(u.Member.Roles, ignoredRoleIds) {
+				activityChannelSender <- memberActivity{userId: u.Author.ID, timestamp: time.Now()}
+			}
+		})
+
+		session.AddHandler(func(s *discordgo.Session, u *discordgo.VoiceStateUpdate) {
+			if !idInSet(u.Member.Roles, ignoredRoleIds) {
+				activityChannelSender <- memberActivity{userId: u.UserID, timestamp: time.Now(), vocal: true}
+			}
+		})
+	}
 
 	if joiningRoleId := roleNameToId[joiningRole]; joiningRoleId != "" {
 		// joining rule is after prefix rule, to manage case where joining role have a prefix

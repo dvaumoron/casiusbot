@@ -87,6 +87,7 @@ func (c Config) require(valueConfName string) string {
 }
 
 func (c Config) readPrefixConfig(filePathName string) (map[string]string, []string, [][2]string, []string) {
+	// TODO merge the prefix config in the yaml file
 	file, err := os.Open(c.updatePath(c.getString(filePathName)))
 	if err != nil {
 		log.Fatalln("Cannot read the configuration file :", err)

@@ -8,15 +8,15 @@ PREFIX_FILE_PATH: "prefix-example.txt"
 # authorized roles could launch apply, clean and reset all commands
 AUTHORIZED_ROLES: []
 # forbidden roles are not allowed to launch role command to get a prefixed role
-# on set of a forbidden role on a user, casiusbot will remove other managed roles  
+# on set of a forbidden role on a user, casiusbot will remove other managed roles
 FORBIDDEN_ROLES: []
-# without JOINING_ROLE, role addition on new guild member is disabled 
+# without JOINING_ROLE, role addition on new guild member is disabled
 JOINING_ROLE: ""
 # the default (used for reset command) shall not be in the forbidden roles and shall not be associated to a prefix
 # on set of a prefix role on a user, casiusbot will remove the default role
 # if casiusbot detect a user (on update) without prefix role, it will add the default role
 DEFAULT_ROLE: ""
-# ignored by casiusbot in the management of roles and prefixes
+# ignored by casiusbot in the management of roles and prefixes and in the monitoring of member activity
 IGNORED_ROLES: ["Bots"]
 
 TARGET_REMINDER_CHANNEL: ""
@@ -26,8 +26,9 @@ TARGET_PREFIX_CHANNEL: ""
 TARGET_CMD_CHANNEL: ""
 TARGET_NEWS_CHANNEL: ""
 
-# without GAME_LIST, game status update will be disabled 
+# without GAME_LIST or UPDATE_GAME_INTERVAL (in seconds), game status update will be disabled
 GAME_LIST: []
+UPDATE_GAME_INTERVAL: 0
 # interval in seconds
 CHECK_INTERVAL: 0
 # in seconds (optional)
@@ -45,6 +46,9 @@ REMINDER_BEFORES: [5]
 COUNT_FILTER_TYPE: "cmdPrefix"
 # when COUNT_FILTER_TYPE is list, only role which name are in COUNT_FILTER_ROLES are displayed by the count command
 COUNT_FILTER_ROLES: []
+# without ACTIVITY_FILE_PATH or SAVE_ACTIVITY_INTERVAL (in seconds), member activity monitoring will be disabled
+ACTIVITY_FILE_PATH: ""
+SAVE_ACTIVITY_INTERVAL: 0
 
 # without APPLY_CMD, CLEAN_CMD, RESET_CMD or COUNT_CMD, the corresponding command is not initialized
 APPLY_CMD: "apply-prefix"
