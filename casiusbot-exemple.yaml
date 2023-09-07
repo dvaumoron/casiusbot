@@ -3,6 +3,8 @@ GUILD_ID: ""
 # without DEEPL_TOKEN, translation will be disabled
 DEEPL_TOKEN: ""
 DEEPL_API_URL: "https://api-free.deepl.com"
+# without LOG_PATH, output default to casiusbot.log
+LOG_PATH: ""
 PREFIX_RULES: 
   # /roleCmd will add the role RoleName1 to the user
   - ROLE: "RoleName1"
