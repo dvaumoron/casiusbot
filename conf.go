@@ -19,13 +19,11 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"io"
 	"log"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -86,47 +84,28 @@ func (c Config) require(valueConfName string) string {
 	return value
 }
 
-func (c Config) readPrefixConfig(filePathName string) (map[string]string, []string, [][2]string, []string) {
-	// TODO merge the prefix config in the yaml file
-	file, err := os.Open(c.updatePath(c.getString(filePathName)))
-	if err != nil {
-		log.Fatalln("Cannot read the configuration file :", err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
+func (c Config) getPrefixConfig(filePathName string) (map[string]string, []string, [][2]string, []string) {
 	nameToPrefix := map[string]string{}
 	prefixes := []string{}
 	cmdAndNames := [][2]string{}
 	specialRoles := []string{}
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line != "" && line[0] != '#' {
-			splitted := strings.Split(line, ":")
-			if splittedSize := len(splitted); splittedSize > 1 {
-				name := strings.TrimSpace(splitted[0])
-				if name != "" {
-					prefix := strings.TrimSpace(splitted[1]) + " "
+	for _, rule := range c.getSlice("PREFIX_RULES") {
+		if casted, ok := rule.(map[string]any); ok {
+			if name, _ := casted["ROLE"].(string); name != "" {
+				prefix, _ := casted["PREFIX"].(string)
+				prefix += " "
 
-					nameToPrefix[name] = prefix
-					prefixes = append(prefixes, prefix)
+				nameToPrefix[name] = prefix
+				prefixes = append(prefixes, prefix)
 
-					if splittedSize > 2 {
-						cmd := strings.TrimSpace(splitted[2])
-						if cmd == "" {
-							log.Fatalln("Malformed configuration file, empty command")
-						}
-						cmdAndNames = append(cmdAndNames, [2]string{cmd, name})
-					} else {
-						specialRoles = append(specialRoles, name)
-					}
+				if cmd, _ := casted["CMD"].(string); cmd == "" {
+					specialRoles = append(specialRoles, name)
+				} else {
+					cmdAndNames = append(cmdAndNames, [2]string{cmd, name})
 				}
+
 			}
 		}
-	}
-
-	if err = scanner.Err(); err != nil {
-		log.Fatalln("Cannot parse the configuration file :", err)
 	}
 	return nameToPrefix, prefixes, cmdAndNames, specialRoles
 }

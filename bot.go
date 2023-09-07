@@ -36,7 +36,7 @@ func main() {
 		return
 	}
 
-	roleNameToPrefix, prefixes, cmdAndRoleNames, specialRoles := config.readPrefixConfig("PREFIX_FILE_PATH")
+	roleNameToPrefix, prefixes, cmdAndRoleNames, specialRoles := config.getPrefixConfig("PREFIX_FILE_PATH")
 
 	okCmdMsg := config.getString("MESSAGE_CMD_OK")
 	errUnauthorizedCmdMsg := buildMsgWithNameValueList(config.getString("MESSAGE_CMD_UNAUTHORIZED"), roleNameToPrefix)
