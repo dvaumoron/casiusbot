@@ -53,10 +53,10 @@ func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan m
 		select {
 		case mActivity := <-activityChannelReceiver:
 			activity := activities[mActivity.userId]
-			activity.messageCount++
 			if mActivity.vocal {
 				activity.lastVocal = mActivity.timestamp
 			} else {
+				activity.messageCount++
 				activity.lastMessage = mActivity.timestamp
 			}
 			activities[mActivity.userId] = activity
@@ -66,8 +66,8 @@ func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan m
 			var builder strings.Builder
 			// header
 			builder.WriteString("userId,userName,userNickName,messageCount,lastMessage,lastVocal\n")
-			for userId, activity := range activities {
-				name := memberNames[userId]
+			for userId, name := range memberNames {
+				activity := activities[userId]
 
 				builder.WriteString(userId)
 				builder.WriteByte(',')
