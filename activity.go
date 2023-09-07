@@ -132,7 +132,7 @@ func loadMemberNames(session *discordgo.Session, guildId string) map[string][2]s
 	names := map[string][2]string{}
 	guildMembers, err := session.GuildMembers(guildId, "", 1000)
 	if err != nil {
-		log.Println("Cannot retrieve guild members (2) :", err)
+		log.Println("Cannot retrieve guild members (4) :", err)
 		return names
 	}
 	for _, guildMember := range guildMembers {
