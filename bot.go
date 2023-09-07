@@ -321,17 +321,17 @@ func main() {
 	})
 
 	if activityPath != "" && saveActivityInterval > 0 {
-		activityChannelSender := bgManageActivity(session, activityPath, dateFormat, saveActivityInterval, infos)
+		activitySender := bgManageActivity(session, activityPath, dateFormat, saveActivityInterval, infos)
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
 			if !idInSet(u.Member.Roles, ignoredRoleIds) {
-				activityChannelSender <- memberActivity{userId: u.Author.ID, timestamp: time.Now()}
+				activitySender <- memberActivity{userId: u.Author.ID, timestamp: time.Now()}
 			}
 		})
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.VoiceStateUpdate) {
 			if !idInSet(u.Member.Roles, ignoredRoleIds) {
-				activityChannelSender <- memberActivity{userId: u.UserID, timestamp: time.Now(), vocal: true}
+				activitySender <- memberActivity{userId: u.UserID, timestamp: time.Now(), vocal: true}
 			}
 		})
 	}
