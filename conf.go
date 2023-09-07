@@ -84,7 +84,7 @@ func (c Config) require(valueConfName string) string {
 	return value
 }
 
-func (c Config) getPrefixConfig(filePathName string) (map[string]string, []string, [][2]string, []string) {
+func (c Config) getPrefixConfig() (map[string]string, []string, [][2]string, []string) {
 	nameToPrefix := map[string]string{}
 	prefixes := []string{}
 	cmdAndNames := [][2]string{}
