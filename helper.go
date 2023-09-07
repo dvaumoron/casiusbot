@@ -33,6 +33,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+const cmdPlaceHolder = "{{cmd}}"
 const numErrorPlaceHolder = "{{numError}}"
 
 type empty = struct{}
@@ -112,9 +113,9 @@ type pathSender struct {
 	sender chan<- string
 }
 
-func MakePathSender(session *discordgo.Session, channelId string) pathSender {
+func MakePathSender(session *discordgo.Session, channelId string, errorMsg string) pathSender {
 	pathChan := make(chan string)
-	go sendFile(session, channelId, pathChan)
+	go sendFile(session, channelId, pathChan, errorMsg)
 	return pathSender{sender: pathChan}
 }
 
@@ -184,7 +185,7 @@ func processMembers(s *discordgo.Session, messageSender chan<- string, cmdName s
 	} else {
 		log.Println("Cannot retrieve guild members (3) :", err)
 	}
-	messageSender <- strings.ReplaceAll(msg, "{{cmd}}", cmdName)
+	messageSender <- strings.ReplaceAll(msg, cmdPlaceHolder, cmdName)
 }
 
 func extractNick(member *discordgo.Member) string {
@@ -209,23 +210,29 @@ func sendMessage(session *discordgo.Session, channelId string, messageReceiver <
 	}
 }
 
-func sendFile(session *discordgo.Session, channelId string, pathReceiver <-chan string) {
+func sendFile(session *discordgo.Session, channelId string, pathReceiver <-chan string, errorMsg string) {
 	for path := range pathReceiver {
-		innerSendFile(session, channelId, path)
+		if innerSendFile(session, channelId, path) {
+			if _, err := session.ChannelMessageSend(channelId, errorMsg); err != nil {
+				log.Println("Message sending failed (2) :", err)
+			}
+		}
 	}
 }
 
-func innerSendFile(session *discordgo.Session, channelId string, path string) {
+func innerSendFile(session *discordgo.Session, channelId string, path string) bool {
 	file, err := os.Open(path)
 	if err != nil {
 		log.Println("File opening failed :", err)
-		return
+		return true
 	}
 	defer file.Close()
 
 	if _, err = session.ChannelFileSend(channelId, path, file); err != nil {
 		log.Println("File sending failed :", err)
+		return true
 	}
+	return false
 }
 
 func launchTickers(number int, interval time.Duration) []chan time.Time {

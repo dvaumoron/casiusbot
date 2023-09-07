@@ -49,7 +49,7 @@ func main() {
 	ownerMsg := config.getString("MESSAGE_OWNER")
 	msgs := [...]string{
 		okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg, prefixMsg,
-		noChangeMsg, endedCmdMsg, strings.ReplaceAll(errPartialCmdMsg, "{{cmd}} ", ""), ownerMsg,
+		noChangeMsg, endedCmdMsg, strings.ReplaceAll(errPartialCmdMsg, cmdPlaceHolder+" ", ""), ownerMsg,
 	}
 
 	guildId := config.require("GUILD_ID")
@@ -304,7 +304,8 @@ func main() {
 	channelManager.AddChannel(targetReminderChannelId)
 	prefixChannelSender := channelManager.Get(targetPrefixChannelId)
 	cmdChannelSender := channelManager.Get(targetCmdChannelId)
-	activitiesChannelSender := MakePathSender(session, targetActivitiesChannelId)
+	errActivitiesCmdMsg := strings.ReplaceAll(errGlobalCmdMsg, cmdPlaceHolder, userActivitiesName)
+	activitiesChannelSender := MakePathSender(session, targetActivitiesChannelId, errActivitiesCmdMsg)
 
 	userMonitor := MakeIdMonitor()
 	if counterError := applyPrefixes(session, guildMembers, infos, &userMonitor); counterError != 0 {
