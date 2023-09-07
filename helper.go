@@ -114,9 +114,13 @@ type pathSender struct {
 	sender chan<- string
 }
 
-func MakePathSender(session *discordgo.Session, channelId string, errorMsg string) pathSender {
+func MakePathSender(session *discordgo.Session, channelId string, errorMsg string, cmdName string) pathSender {
+	if channelId == "" {
+		return pathSender{}
+	}
+
 	pathChan := make(chan string)
-	go sendFile(session, channelId, pathChan, errorMsg)
+	go sendFile(session, channelId, pathChan, strings.ReplaceAll(errorMsg, cmdPlaceHolder, cmdName))
 	return pathSender{sender: pathChan}
 }
 
@@ -322,4 +326,10 @@ func buildMsgWithNameValueList(baseMsg string, nameToValue map[string]string) st
 		buffer.WriteString(nameValue[1])
 	}
 	return buffer.String()
+}
+
+func sendTick(tickSender chan<- empty, interval time.Duration) {
+	for range time.Tick(interval) {
+		tickSender <- empty{}
+	}
 }

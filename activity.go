@@ -40,14 +40,13 @@ type activityData struct {
 	lastVocal    time.Time
 }
 
-func bgManageActivity(session *discordgo.Session, activityPath string, dateFormat string, saveInterval time.Duration, infos GuildAndConfInfo) chan<- memberActivity {
+func bgManageActivity(session *discordgo.Session, activityPath string, dateFormat string, saveTickReceiver <-chan empty, infos GuildAndConfInfo) chan<- memberActivity {
 	activityChannel := make(chan memberActivity)
-	go manageActivity(session, activityChannel, activityPath, dateFormat, saveInterval, infos)
+	go manageActivity(session, activityChannel, activityPath, dateFormat, saveTickReceiver, infos)
 	return activityChannel
 }
 
-func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan memberActivity, activityPath string, dateFormat string, saveInterval time.Duration, infos GuildAndConfInfo) {
-	saveticker := time.Tick(saveInterval)
+func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan memberActivity, activityPath string, dateFormat string, saveTickReceiver <-chan empty, infos GuildAndConfInfo) {
 	activities := loadActivities(activityPath, dateFormat)
 	for {
 		select {
@@ -60,7 +59,7 @@ func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan m
 				activity.lastMessage = mActivity.timestamp
 			}
 			activities[mActivity.userId] = activity
-		case <-saveticker:
+		case <-saveTickReceiver:
 			memberNames := loadMemberNames(session, infos.guildId)
 
 			var builder strings.Builder
@@ -142,9 +141,10 @@ func loadMemberNames(session *discordgo.Session, guildId string) map[string][2]s
 	return names
 }
 
-func userActivitiesCmd(s *discordgo.Session, i *discordgo.InteractionCreate, sender pathSender, activityPath string, infos GuildAndConfInfo) {
+func userActivitiesCmd(s *discordgo.Session, i *discordgo.InteractionCreate, sender pathSender, activityPath string, saveTickSender chan<- empty, infos GuildAndConfInfo) {
 	returnMsg := infos.msgs[0]
 	if idInSet(i.Member.Roles, infos.authorizedRoleIds) {
+		saveTickSender <- empty{}
 		sender.SendPath(activityPath)
 	} else {
 		returnMsg = infos.msgs[1]

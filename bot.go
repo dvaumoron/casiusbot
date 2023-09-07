@@ -90,6 +90,8 @@ func main() {
 		}
 	}
 
+	monitorActivity := activityPath != "" && saveActivityInterval > 0
+
 	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+5)
 	applyName, cmds := appendCommand(cmds, config, "APPLY_CMD", "DESCRIPTION_APPLY_CMD")
 	cleanName, cmds := appendCommand(cmds, config, "CLEAN_CMD", "DESCRIPTION_CLEAN_CMD")
@@ -97,7 +99,10 @@ func main() {
 	resetAllName, cmds := appendCommand(cmds, config, "RESET_ALL_CMD", "DESCRIPTION_RESET_ALL_CMD")
 	countName, cmds := appendCommand(cmds, config, "COUNT_CMD", "DESCRIPTION_COUNT_CMD")
 	roleCmdDesc := config.require("DESCRIPTION_ROLE_CMD")
-	userActivitiesName, cmds := appendCommand(cmds, config, "USER_ACTIVITIES_CMD", "DESCRIPTION_USER_ACTIVITIES_CMD")
+	var userActivitiesName string
+	if monitorActivity {
+		userActivitiesName, cmds = appendCommand(cmds, config, "USER_ACTIVITIES_CMD", "DESCRIPTION_USER_ACTIVITIES_CMD")
+	}
 
 	session, err := discordgo.New("Bot " + config.require("BOT_TOKEN"))
 	if err != nil {
@@ -167,7 +172,7 @@ func main() {
 		log.Println("Cannot retrieve the guild channel for news :", targetNewsChannelName)
 		return // to allow defer
 	}
-	if targetActivitiesChannelId == "" && activityPath != "" && saveActivityInterval != 0 && userActivitiesName != "" {
+	if targetActivitiesChannelId == "" && monitorActivity {
 		log.Println("Cannot retrieve the guild channel for activities :", targetActivitiesChannelName)
 		return // to allow defer
 	}
@@ -304,8 +309,7 @@ func main() {
 	channelManager.AddChannel(targetReminderChannelId)
 	prefixChannelSender := channelManager.Get(targetPrefixChannelId)
 	cmdChannelSender := channelManager.Get(targetCmdChannelId)
-	errActivitiesCmdMsg := strings.ReplaceAll(errGlobalCmdMsg, cmdPlaceHolder, userActivitiesName)
-	activitiesChannelSender := MakePathSender(session, targetActivitiesChannelId, errActivitiesCmdMsg)
+	activitiesChannelSender := MakePathSender(session, targetActivitiesChannelId, errGlobalCmdMsg, userActivitiesName)
 
 	userMonitor := MakeIdMonitor()
 	if counterError := applyPrefixes(session, guildMembers, infos, &userMonitor); counterError != 0 {
@@ -321,8 +325,12 @@ func main() {
 		}
 	})
 
-	if activityPath != "" && saveActivityInterval > 0 {
-		activitySender := bgManageActivity(session, activityPath, dateFormat, saveActivityInterval, infos)
+	var saveChan chan empty
+
+	if monitorActivity {
+		saveChan = make(chan empty)
+		go sendTick(saveChan, saveActivityInterval)
+		activitySender := bgManageActivity(session, activityPath, dateFormat, saveChan, infos)
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
 			if !idInSet(u.Member.Roles, ignoredRoleIds) {
@@ -388,7 +396,7 @@ func main() {
 	cmdAndRoleIds = nil
 
 	addNonEmpty(execCmds, userActivitiesName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		userActivitiesCmd(s, i, activitiesChannelSender, activityPath, infos)
+		userActivitiesCmd(s, i, activitiesChannelSender, activityPath, saveChan, infos)
 	})
 
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
