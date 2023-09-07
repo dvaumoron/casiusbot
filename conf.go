@@ -50,7 +50,7 @@ func readConfig() (Config, error) {
 	confData := map[string]any{}
 	err = yaml.Unmarshal(confBody, confData)
 	c := Config{basePath: path.Dir(confPath), data: confData}
-	c.initLog("casiusbot.log")
+	c.initLog()
 	return c, err
 }
 
@@ -62,7 +62,11 @@ func (c Config) updatePath(filePath string) string {
 	return path.Join(c.basePath, filePath)
 }
 
-func (c Config) initLog(logPath string) {
+func (c Config) initLog() {
+	logPath := c.getString("LOG_PATH")
+	if logPath == "" {
+		logPath = "casiusbot.log"
+	}
 	log.SetOutput(io.MultiWriter(log.Writer(), &lumberjack.Logger{
 		Filename:   c.updatePath(logPath),
 		MaxSize:    1, // megabytes
@@ -175,4 +179,12 @@ func (c Config) getDelayMins(valuesConfName string) []time.Duration {
 		delays = append(delays, delay)
 	}
 	return delays
+}
+
+func (c Config) getPath(pathConfName string) string {
+	path, _ := c.data[pathConfName].(string)
+	if path != "" {
+		path = c.updatePath(path)
+	}
+	return path
 }

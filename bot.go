@@ -59,7 +59,7 @@ func main() {
 	updateGameInterval := config.getDurationSec("UPDATE_GAME_INTERVAL")
 	feeds := config.getSlice("FEEDS")
 	checkInterval := config.getDurationSec("CHECK_INTERVAL")
-	activityPath := config.updatePath("ACTIVITY_FILE_PATH")
+	activityPath := config.getPath("ACTIVITY_FILE_PATH")
 	saveActivityInterval := config.getDurationSec("SAVE_ACTIVITY_INTERVAL")
 	dateFormat := config.getString("DATE_FORMAT")
 	reminderDelays := config.getDelayMins("REMINDER_BEFORES")
