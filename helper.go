@@ -108,6 +108,20 @@ func (m ChannelSenderManager) Get(channelId string) chan<- string {
 	return m.channels[channelId]
 }
 
+type pathSender struct {
+	sender chan<- string
+}
+
+func MakePathSender(session *discordgo.Session, channelId string) pathSender {
+	pathChan := make(chan string)
+	go sendFile(session, channelId, pathChan)
+	return pathSender{sender: pathChan}
+}
+
+func (s pathSender) SendPath(path string) {
+	s.sender <- path
+}
+
 func initIdSet(trimmedNames []string, nameToId map[string]string) (map[string]empty, error) {
 	idSet := map[string]empty{}
 	for _, name := range trimmedNames {
@@ -193,12 +207,6 @@ func sendMessage(session *discordgo.Session, channelId string, messageReceiver <
 			log.Println("Message sending failed :", err)
 		}
 	}
-}
-
-func createFileSender(session *discordgo.Session, channelId string) chan<- string {
-	pathChan := make(chan string)
-	go sendFile(session, channelId, pathChan)
-	return pathChan
 }
 
 func sendFile(session *discordgo.Session, channelId string, pathReceiver <-chan string) {

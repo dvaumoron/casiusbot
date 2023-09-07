@@ -304,7 +304,7 @@ func main() {
 	channelManager.AddChannel(targetReminderChannelId)
 	prefixChannelSender := channelManager.Get(targetPrefixChannelId)
 	cmdChannelSender := channelManager.Get(targetCmdChannelId)
-	activitiesChannelSender := createFileSender(session, targetActivitiesChannelId)
+	activitiesChannelSender := MakePathSender(session, targetActivitiesChannelId)
 
 	userMonitor := MakeIdMonitor()
 	if counterError := applyPrefixes(session, guildMembers, infos, &userMonitor); counterError != 0 {

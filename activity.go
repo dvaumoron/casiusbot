@@ -142,10 +142,10 @@ func loadMemberNames(session *discordgo.Session, guildId string) map[string][2]s
 	return names
 }
 
-func userActivitiesCmd(s *discordgo.Session, i *discordgo.InteractionCreate, pathSender chan<- string, activityPath string, infos GuildAndConfInfo) {
+func userActivitiesCmd(s *discordgo.Session, i *discordgo.InteractionCreate, sender pathSender, activityPath string, infos GuildAndConfInfo) {
 	returnMsg := infos.msgs[0]
 	if idInSet(i.Member.Roles, infos.authorizedRoleIds) {
-		pathSender <- activityPath
+		sender.SendPath(activityPath)
 	} else {
 		returnMsg = infos.msgs[1]
 	}
