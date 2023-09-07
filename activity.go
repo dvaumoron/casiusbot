@@ -65,7 +65,7 @@ func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan m
 
 			var builder strings.Builder
 			// header
-			builder.WriteString("userId,userName,userNickName,messageCount,lastMessage,lastVocal")
+			builder.WriteString("userId,userName,userNickName,messageCount,lastMessage,lastVocal\n")
 			for userId, activity := range activities {
 				name := memberNames[userId]
 
