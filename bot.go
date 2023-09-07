@@ -55,9 +55,9 @@ func main() {
 	guildId := config.require("GUILD_ID")
 	joiningRole := config.getString("JOINING_ROLE")
 	defaultRole := config.require("DEFAULT_ROLE")
-	gameList := config.getSlice("GAME_LIST")
+	gameList := config.getStringSlice("GAME_LIST")
 	updateGameInterval := config.getDurationSec("UPDATE_GAME_INTERVAL")
-	feedURLs := config.getSlice("FEED_URLS")
+	feeds := config.getSlice("FEEDS")
 	checkInterval := config.getDurationSec("CHECK_INTERVAL")
 	activityPath := config.updatePath("ACTIVITY_FILE_PATH")
 	saveActivityInterval := config.getDurationSec("SAVE_ACTIVITY_INTERVAL")
@@ -75,15 +75,10 @@ func main() {
 		log.Fatalln("CHECK_INTERVAL is required")
 	}
 
-	var selectors []string
-	var checkRules []string
 	var translater Translater
-	feedNumber := len(feedURLs)
+	feedNumber := len(feeds)
 	feedActived := feedNumber != 0
 	if feedActived {
-		selectors = config.getSlice("FEED_TRANSLATE_SELECTORS")
-		checkRules = config.getSlice("FEED_LINK_CHECKERS")
-
 		targetNewsChannelName = config.require("TARGET_NEWS_CHANNEL")
 		if deepLToken := config.getString("DEEPL_TOKEN"); deepLToken != "" {
 			deepLUrl := config.require("DEEPL_API_URL")
@@ -417,7 +412,7 @@ func main() {
 		startTime = startTime.Add(-backwardLoading)
 	}
 
-	bgReadMultipleRSS(channelManager.Get(targetNewsChannelId), feedURLs, selectors, checkRules, translater, startTime, tickers)
+	bgReadMultipleRSS(channelManager.Get(targetNewsChannelId), feeds, translater, startTime, tickers)
 	go remindEvent(session, guildId, reminderDelays, channelManager.Get(targetReminderChannelId), reminderPrefix, startTime, tickers[feedNumber])
 
 	stop := make(chan os.Signal, 1)

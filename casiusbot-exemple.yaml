@@ -35,10 +35,11 @@ UPDATE_GAME_INTERVAL: 0
 CHECK_INTERVAL: 0
 # in seconds (optional)
 INITIAL_BACKWARD_LOADING: 0
-# without FEED_URLS, RSS checking will be disabled
-FEED_URLS: []
-FEED_LINK_CHECKERS: []
-FEED_TRANSLATE_SELECTORS: []
+# without FEEDS, RSS checking will be disabled
+FEEDS: 
+  - URL: ""
+    CHECKER: "" 
+    TRANSLATE_SELECTOR: ""
 # optional (help the translation API)
 TRANSLATE_SOURCE_LANG: ""
 TRANSLATE_TARGET_LANG: ""

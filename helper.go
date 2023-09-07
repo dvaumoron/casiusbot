@@ -250,22 +250,20 @@ func updateGameStatus(session *discordgo.Session, games []string, interval time.
 	}
 }
 
-func initChecker(checkRules []string, index int, checkRulesSize int) func(string) bool {
-	if index < checkRulesSize {
-		if rule := checkRules[index]; rule != "" {
-			if colonIndex := strings.IndexByte(rule, ':'); colonIndex == -1 {
-				log.Println("Check rule not recognized :", rule)
-			} else {
-				if re, err := regexp.Compile(rule[colonIndex+1:]); err == nil {
-					if rule[:colonIndex] == "reject" {
-						return func(link string) bool {
-							return !re.MatchString(link)
-						}
+func initChecker(rule string) func(string) bool {
+	if rule != "" {
+		if colonIndex := strings.IndexByte(rule, ':'); colonIndex == -1 {
+			log.Println("Check rule not recognized :", rule)
+		} else {
+			if re, err := regexp.Compile(rule[colonIndex+1:]); err == nil {
+				if rule[:colonIndex] == "reject" {
+					return func(link string) bool {
+						return !re.MatchString(link)
 					}
-					return re.MatchString
-				} else {
-					log.Println("Failed to compile regexp to check link :", err)
 				}
+				return re.MatchString
+			} else {
+				log.Println("Failed to compile regexp to check link :", err)
 			}
 		}
 	}

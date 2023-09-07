@@ -30,27 +30,28 @@ type linkInfo struct {
 	description string
 }
 
-func bgReadMultipleRSS(messageSender chan<- string, feedURLs []string, selectors []string, checkRules []string, translater Translater, startTime time.Time, tickers []chan time.Time) {
-	if len(feedURLs) == 0 {
+func bgReadMultipleRSS(messageSender chan<- string, feeds []any, translater Translater, startTime time.Time, tickers []chan time.Time) {
+	if len(feeds) == 0 {
 		return
 	}
 
-	selectorsSize := len(selectors)
-	checkRulesSize := len(checkRules)
-
 	defaultLinkSender := createLinkSender(messageSender)
-	for index, feedURL := range feedURLs {
-		filteringSender := initLinkSender(messageSender, defaultLinkSender, translater, selectors, index, selectorsSize)
-		checkLink := initChecker(checkRules, index, checkRulesSize)
-		go startReadRSS(filteringSender, feedURL, checkLink, startTime, tickers[index])
+	for index, feed := range feeds {
+		if casted, ok := feed.(map[string]any); ok {
+			if feedURL, _ := casted["URL"].(string); feedURL != "" {
+				selector, _ := casted["TRANSLATE_SELECTOR"].(string)
+				checkRule, _ := casted["CHECKER"].(string)
+				filteringSender := initLinkSender(messageSender, defaultLinkSender, translater, selector)
+				checkLink := initChecker(checkRule)
+				go startReadRSS(filteringSender, feedURL, checkLink, startTime, tickers[index])
+			}
+		}
 	}
 }
 
-func initLinkSender(messageSender chan<- string, defaultLinkSender chan<- linkInfo, translater Translater, selectors []string, index int, selectorsSize int) chan<- linkInfo {
-	if translater != nil && index < selectorsSize {
-		if selector := selectors[index]; selector != "" {
-			return bgAddTranslationFilter(messageSender, selector, translater)
-		}
+func initLinkSender(messageSender chan<- string, defaultLinkSender chan<- linkInfo, translater Translater, selector string) chan<- linkInfo {
+	if translater != nil && selector != "" {
+		return bgAddTranslationFilter(messageSender, selector, translater)
 	}
 	return defaultLinkSender
 }

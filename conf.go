@@ -151,7 +151,12 @@ func (c Config) getIdSet(namesConfName string, nameToId map[string]string) (map[
 	return idSet, nil
 }
 
-func (c Config) getSlice(valuesConfName string) []string {
+func (c Config) getSlice(valuesConfName string) []any {
+	values, _ := c.data[valuesConfName].([]any)
+	return values
+}
+
+func (c Config) getStringSlice(valuesConfName string) []string {
 	values, ok := c.data[valuesConfName].([]any)
 	if !ok {
 		return nil
