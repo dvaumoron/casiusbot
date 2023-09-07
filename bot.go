@@ -326,7 +326,7 @@ func main() {
 	})
 
 	if activityPath != "" && saveActivityInterval > 0 {
-		activityChannelSender := bgManageActivity(activityPath, dateFormat, saveActivityInterval)
+		activityChannelSender := bgManageActivity(session, activityPath, dateFormat, saveActivityInterval, infos)
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
 			if !idInSet(u.Member.Roles, ignoredRoleIds) {

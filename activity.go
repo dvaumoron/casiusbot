@@ -40,13 +40,13 @@ type activityData struct {
 	lastVocal    time.Time
 }
 
-func bgManageActivity(activityPath string, dateFormat string, saveInterval time.Duration) chan<- memberActivity {
+func bgManageActivity(session *discordgo.Session, activityPath string, dateFormat string, saveInterval time.Duration, infos GuildAndConfInfo) chan<- memberActivity {
 	activityChannel := make(chan memberActivity)
-	go manageActivity(activityChannel, activityPath, dateFormat, saveInterval)
+	go manageActivity(session, activityChannel, activityPath, dateFormat, saveInterval, infos)
 	return activityChannel
 }
 
-func manageActivity(activityChannelReceiver <-chan memberActivity, activityPath string, dateFormat string, saveInterval time.Duration) {
+func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan memberActivity, activityPath string, dateFormat string, saveInterval time.Duration, infos GuildAndConfInfo) {
 	saveticker := time.Tick(saveInterval)
 	activities := loadActivities(activityPath, dateFormat)
 	for {
@@ -61,15 +61,21 @@ func manageActivity(activityChannelReceiver <-chan memberActivity, activityPath 
 			}
 			activities[mActivity.userId] = activity
 		case <-saveticker:
+			memberNames := loadMemberNames(session, infos.guildId)
+
 			var builder strings.Builder
 			// header
 			builder.WriteString("userId,userName,userNickName,messageCount,lastMessage,lastVocal")
 			for userId, activity := range activities {
+				name := memberNames[userId]
+
 				builder.WriteString(userId)
 				builder.WriteByte(',')
-				// TODO pseudo discord
+				// user name
+				builder.WriteString(name[0])
 				builder.WriteByte(',')
-				// TODO pseudo vioc
+				// user nickname
+				builder.WriteString(name[1])
 				builder.WriteByte(',')
 				builder.WriteString(strconv.Itoa(activity.messageCount))
 				builder.WriteByte(',')
@@ -121,6 +127,18 @@ func loadActivities(activityPath string, dateFormat string) map[string]activityD
 		return map[string]activityData{} // after error, restart monitoring with empty data
 	}
 	return activities
+}
+func loadMemberNames(session *discordgo.Session, guildId string) map[string][2]string {
+	names := map[string][2]string{}
+	guildMembers, err := session.GuildMembers(guildId, "", 1000)
+	if err != nil {
+		log.Println("Cannot retrieve guild members (2) :", err)
+		return names
+	}
+	for _, guildMember := range guildMembers {
+		names[guildMember.User.ID] = [2]string{guildMember.User.Username, guildMember.Nick}
+	}
+	return names
 }
 
 func userActivitiesCmd(s *discordgo.Session, i *discordgo.InteractionCreate, pathSender chan<- string, activityPath string, infos GuildAndConfInfo) {
