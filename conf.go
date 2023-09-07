@@ -114,12 +114,12 @@ func (c Config) getPrefixConfig() (map[string]string, []string, [][2]string, []s
 	return nameToPrefix, prefixes, cmdAndNames, specialRoles
 }
 
-func (c Config) getIdSet(namesConfName string, nameToId map[string]string) (map[string]empty, error) {
+func (c Config) getIdSet(namesConfName string, nameToId map[string]string) (stringSet, error) {
 	names, ok := c.data[namesConfName].([]any)
 	if !ok {
 		return nil, nil
 	}
-	idSet := map[string]empty{}
+	idSet := stringSet{}
 	for _, name := range names {
 		nameStr, ok := name.(string)
 		if !ok {

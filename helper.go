@@ -37,17 +37,18 @@ const cmdPlaceHolder = "{{cmd}}"
 const numErrorPlaceHolder = "{{numError}}"
 
 type empty = struct{}
+type stringSet = map[string]empty
 
 type GuildAndConfInfo struct {
 	guildId                    string
 	ownerId                    string
 	defaultRoleId              string
-	authorizedRoleIds          map[string]empty
-	forbiddenRoleIds           map[string]empty
-	ignoredRoleIds             map[string]empty
-	forbiddenAndignoredRoleIds map[string]empty
-	cmdRoleIds                 map[string]empty
-	specialRoleIds             map[string]empty
+	authorizedRoleIds          stringSet
+	forbiddenRoleIds           stringSet
+	ignoredRoleIds             stringSet
+	forbiddenAndignoredRoleIds stringSet
+	cmdRoleIds                 stringSet
+	specialRoleIds             stringSet
 	roleIdToPrefix             map[string]string
 	prefixes                   []string
 	roleIdToDisplayName        map[string]string
@@ -55,12 +56,12 @@ type GuildAndConfInfo struct {
 }
 
 type IdMonitor struct {
-	processing map[string]empty
+	processing stringSet
 	mutex      sync.RWMutex
 }
 
 func MakeIdMonitor() IdMonitor {
-	return IdMonitor{processing: map[string]empty{}}
+	return IdMonitor{processing: stringSet{}}
 }
 
 func (m *IdMonitor) StopProcessing(id string) {
@@ -123,8 +124,8 @@ func (s pathSender) SendPath(path string) {
 	s.sender <- path
 }
 
-func initIdSet(trimmedNames []string, nameToId map[string]string) (map[string]empty, error) {
-	idSet := map[string]empty{}
+func initIdSet(trimmedNames []string, nameToId map[string]string) (stringSet, error) {
+	idSet := stringSet{}
 	for _, name := range trimmedNames {
 		id := nameToId[name]
 		if id == "" {
@@ -135,7 +136,7 @@ func initIdSet(trimmedNames []string, nameToId map[string]string) (map[string]em
 	return idSet, nil
 }
 
-func idInSet(ids []string, idSet map[string]empty) bool {
+func idInSet(ids []string, idSet stringSet) bool {
 	for _, id := range ids {
 		if _, ok := idSet[id]; ok {
 			return true

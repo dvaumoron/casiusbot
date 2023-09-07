@@ -111,7 +111,7 @@ func extractRoleCount(guildMembers []*discordgo.Member) map[string]int {
 	return roleIdToCount
 }
 
-func extractRoleCountWithFilter(guildMembers []*discordgo.Member, filterRoleIds map[string]empty) map[string]int {
+func extractRoleCountWithFilter(guildMembers []*discordgo.Member, filterRoleIds stringSet) map[string]int {
 	roleIdToCount := map[string]int{}
 	for _, guildMember := range guildMembers {
 		for _, roleId := range guildMember.Roles {

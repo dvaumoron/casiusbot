@@ -180,7 +180,7 @@ func main() {
 	targetActivitiesChannelName = ""
 
 	roleNameToId := map[string]string{}
-	prefixRoleIds := map[string]empty{}
+	prefixRoleIds := stringSet{}
 	roleIdToPrefix := map[string]string{}
 	roleIdToDisplayName := map[string]string{}
 	for _, guildRole := range guildRoles {
@@ -203,7 +203,7 @@ func main() {
 	roleNameToPrefix = nil
 	guildRoles = nil
 
-	cmdRoleIds := map[string]empty{}
+	cmdRoleIds := stringSet{}
 	cmdAndRoleIds := make([][2]string, 0, len(cmdAndRoleNames))
 	for _, cmdAndRoleName := range cmdAndRoleNames {
 		roleId := roleNameToId[cmdAndRoleName[1]]
@@ -246,7 +246,7 @@ func main() {
 	}
 
 	// merge the two categories
-	forbiddenAndignoredRoleIds := map[string]empty{}
+	forbiddenAndignoredRoleIds := stringSet{}
 	for roleId := range forbiddenRoleIds {
 		forbiddenAndignoredRoleIds[roleId] = empty{}
 	}
@@ -262,7 +262,7 @@ func main() {
 	// for GC cleaning
 	specialRoles = nil
 
-	var countFilterRoleIds map[string]empty
+	var countFilterRoleIds stringSet
 	switch countFilterType := config.getString("COUNT_FILTER_TYPE"); countFilterType {
 	case "list":
 		countFilterRoleIds, err = config.getIdSet("COUNT_FILTER_ROLES", roleNameToId)
