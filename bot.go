@@ -61,6 +61,7 @@ func main() {
 	checkInterval := config.getDurationSec("CHECK_INTERVAL")
 	activityPath := config.updatePath("ACTIVITY_FILE_PATH")
 	saveActivityInterval := config.getDurationSec("SAVE_ACTIVITY_INTERVAL")
+	dateFormat := config.getString("DATE_FORMAT")
 	reminderDelays := config.getDelayMins("REMINDER_BEFORES")
 	reminderPrefix := buildReminderPrefix(config, "REMINDER_TEXT", guildId)
 
@@ -68,6 +69,7 @@ func main() {
 	targetPrefixChannelName := config.getString("TARGET_PREFIX_CHANNEL")
 	targetCmdChannelName := config.getString("TARGET_CMD_CHANNEL")
 	targetNewsChannelName := ""
+	targetActivitiesChannelName := config.getString("TARGET_ACTIVITIES_CHANNEL")
 
 	if checkInterval == 0 {
 		log.Fatalln("CHECK_INTERVAL is required")
@@ -100,8 +102,7 @@ func main() {
 	resetAllName, cmds := appendCommand(cmds, config, "RESET_ALL_CMD", "DESCRIPTION_RESET_ALL_CMD")
 	countName, cmds := appendCommand(cmds, config, "COUNT_CMD", "DESCRIPTION_COUNT_CMD")
 	roleCmdDesc := config.require("DESCRIPTION_ROLE_CMD")
-
-	// TODO command to retrieve activity member file
+	userActivitiesName, cmds := appendCommand(cmds, config, "USER_ACTIVITIES_CMD", "DESCRIPTION_USER_ACTIVITIES_CMD")
 
 	session, err := discordgo.New("Bot " + config.require("BOT_TOKEN"))
 	if err != nil {
@@ -135,6 +136,7 @@ func main() {
 	targetPrefixChannelId := ""
 	targetCmdChannelId := ""
 	targetNewsChannelId := ""
+	targetActivitiesChannelId := ""
 	for _, channel := range guildChannels {
 		// multiple if with no else statement (could be the same channel)
 		channelName := channel.Name
@@ -149,6 +151,9 @@ func main() {
 		}
 		if channelName == targetNewsChannelName {
 			targetNewsChannelId = channel.ID
+		}
+		if channelName == targetActivitiesChannelName {
+			targetActivitiesChannelId = channel.ID
 		}
 	}
 	if targetReminderChannelId == "" {
@@ -167,12 +172,17 @@ func main() {
 		log.Println("Cannot retrieve the guild channel for news :", targetNewsChannelName)
 		return // to allow defer
 	}
+	if targetActivitiesChannelId == "" && activityPath != "" && saveActivityInterval != 0 && userActivitiesName != "" {
+		log.Println("Cannot retrieve the guild channel for activities :", targetActivitiesChannelName)
+		return // to allow defer
+	}
 	// for GC cleaning
 	guildChannels = nil
 	targetReminderChannelName = ""
 	targetPrefixChannelName = ""
 	targetCmdChannelName = ""
 	targetNewsChannelName = ""
+	targetActivitiesChannelName = ""
 
 	roleNameToId := map[string]string{}
 	prefixRoleIds := map[string]empty{}
@@ -299,6 +309,7 @@ func main() {
 	channelManager.AddChannel(targetReminderChannelId)
 	prefixChannelSender := channelManager.Get(targetPrefixChannelId)
 	cmdChannelSender := channelManager.Get(targetCmdChannelId)
+	activitiesChannelSender := createFileSender(session, targetActivitiesChannelId)
 
 	userMonitor := MakeIdMonitor()
 	if counterError := applyPrefixes(session, guildMembers, infos, &userMonitor); counterError != 0 {
@@ -315,7 +326,7 @@ func main() {
 	})
 
 	if activityPath != "" && saveActivityInterval > 0 {
-		activityChannelSender := bgManageActivity(activityPath, saveActivityInterval)
+		activityChannelSender := bgManageActivity(activityPath, dateFormat, saveActivityInterval)
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
 			if !idInSet(u.Member.Roles, ignoredRoleIds) {
@@ -379,6 +390,10 @@ func main() {
 	}
 	// for GC cleaning
 	cmdAndRoleIds = nil
+
+	addNonEmpty(execCmds, userActivitiesName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		userActivitiesCmd(s, i, activitiesChannelSender, activityPath, infos)
+	})
 
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if execCmd, ok := execCmds[i.ApplicationCommandData().Name]; ok {

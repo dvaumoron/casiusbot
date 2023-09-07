@@ -18,7 +18,16 @@
 
 package main
 
-import "time"
+import (
+	"bufio"
+	"log"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/bwmarrin/discordgo"
+)
 
 type memberActivity struct {
 	userId    string
@@ -31,16 +40,15 @@ type activityData struct {
 	lastVocal    time.Time
 }
 
-func bgManageActivity(activityPath string, saveInterval time.Duration) chan<- memberActivity {
+func bgManageActivity(activityPath string, dateFormat string, saveInterval time.Duration) chan<- memberActivity {
 	activityChannel := make(chan memberActivity)
-	go manageActivity(activityChannel, activityPath, saveInterval)
+	go manageActivity(activityChannel, activityPath, dateFormat, saveInterval)
 	return activityChannel
 }
 
-func manageActivity(activityChannelReceiver <-chan memberActivity, activityPath string, saveInterval time.Duration) {
+func manageActivity(activityChannelReceiver <-chan memberActivity, activityPath string, dateFormat string, saveInterval time.Duration) {
 	saveticker := time.Tick(saveInterval)
-	activities := map[string]activityData{}
-	// TODO read saved data
+	activities := loadActivities(activityPath, dateFormat)
 	for {
 		select {
 		case mActivity := <-activityChannelReceiver:
@@ -53,7 +61,78 @@ func manageActivity(activityChannelReceiver <-chan memberActivity, activityPath 
 			}
 			activities[mActivity.userId] = activity
 		case <-saveticker:
-			// TODO write data to a csv file
+			var builder strings.Builder
+			// header
+			builder.WriteString("userId,userName,userNickName,messageCount,lastMessage,lastVocal")
+			for userId, activity := range activities {
+				builder.WriteString(userId)
+				builder.WriteByte(',')
+				// TODO pseudo discord
+				builder.WriteByte(',')
+				// TODO pseudo vioc
+				builder.WriteByte(',')
+				builder.WriteString(strconv.Itoa(activity.messageCount))
+				builder.WriteByte(',')
+				builder.WriteString(activity.lastMessage.Format(dateFormat))
+				builder.WriteByte(',')
+				builder.WriteString(activity.lastVocal.Format(dateFormat))
+				builder.WriteByte('\n')
+			}
+			os.WriteFile(activityPath, []byte(builder.String()), 0644)
 		}
 	}
+}
+
+func loadActivities(activityPath string, dateFormat string) map[string]activityData {
+	activities := map[string]activityData{}
+	file, err := os.Open(activityPath)
+	if err != nil {
+		log.Println("Loading saved activities failed :", err)
+		return activities
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	scanner.Scan() // skip header
+	for scanner.Scan() {
+		splitted := strings.Split(scanner.Text(), ",")
+		messageCount, err := strconv.Atoi(splitted[3])
+		if err != nil {
+			log.Println("Parsing message count failed :", err)
+			return map[string]activityData{} // after error, restart monitoring with empty data
+		}
+
+		lastMessage, err := time.Parse(dateFormat, splitted[4])
+		if err != nil {
+			log.Println("Parsing last message date failed :", err)
+			return map[string]activityData{} // after error, restart monitoring with empty data
+		}
+		lastVocal, err := time.Parse(dateFormat, splitted[5])
+		if err != nil {
+			log.Println("Parsing last vocal date failed :", err)
+			return map[string]activityData{} // after error, restart monitoring with empty data
+		}
+		activities[splitted[0]] = activityData{
+			messageCount: messageCount, lastMessage: lastMessage, lastVocal: lastVocal,
+		}
+	}
+	if err = scanner.Err(); err != nil {
+		log.Println("Parsing saved activities failed :", err)
+		return map[string]activityData{} // after error, restart monitoring with empty data
+	}
+	return activities
+}
+
+func userActivitiesCmd(s *discordgo.Session, i *discordgo.InteractionCreate, pathSender chan<- string, activityPath string, infos GuildAndConfInfo) {
+	returnMsg := infos.msgs[0]
+	if idInSet(i.Member.Roles, infos.authorizedRoleIds) {
+		pathSender <- activityPath
+	} else {
+		returnMsg = infos.msgs[1]
+	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Content: returnMsg},
+	})
 }

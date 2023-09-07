@@ -22,6 +22,7 @@ import (
 	"errors"
 	"log"
 	"math/rand"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -191,6 +192,31 @@ func sendMessage(session *discordgo.Session, channelId string, messageReceiver <
 		if _, err := session.ChannelMessageSend(channelId, message); err != nil {
 			log.Println("Message sending failed :", err)
 		}
+	}
+}
+
+func createFileSender(session *discordgo.Session, channelId string) chan<- string {
+	pathChan := make(chan string)
+	go sendFile(session, channelId, pathChan)
+	return pathChan
+}
+
+func sendFile(session *discordgo.Session, channelId string, pathReceiver <-chan string) {
+	for path := range pathReceiver {
+		innerSendFile(session, channelId, path)
+	}
+}
+
+func innerSendFile(session *discordgo.Session, channelId string, path string) {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Println("File opening failed :", err)
+		return
+	}
+	defer file.Close()
+
+	if _, err = session.ChannelFileSend(channelId, path, file); err != nil {
+		log.Println("File sending failed :", err)
 	}
 }
 

@@ -25,6 +25,8 @@ TARGET_PREFIX_CHANNEL: ""
 # TARGET_CMD_CHANNEL is used to send message when apply, clean or reset all background work is finished 
 TARGET_CMD_CHANNEL: ""
 TARGET_NEWS_CHANNEL: ""
+# TARGET_ACTIVITIES_CHANNEL is used to send user activities file
+TARGET_ACTIVITIES_CHANNEL: ""
 
 # without GAME_LIST or UPDATE_GAME_INTERVAL (in seconds), game status update will be disabled
 GAME_LIST: []
@@ -49,6 +51,7 @@ COUNT_FILTER_ROLES: []
 # without ACTIVITY_FILE_PATH or SAVE_ACTIVITY_INTERVAL (in seconds), member activity monitoring will be disabled
 ACTIVITY_FILE_PATH: ""
 SAVE_ACTIVITY_INTERVAL: 0
+DATE_FORMAT: "2/1/2006"
 
 # without APPLY_CMD, CLEAN_CMD, RESET_CMD or COUNT_CMD, the corresponding command is not initialized
 APPLY_CMD: "apply-prefix"
@@ -62,6 +65,8 @@ COUNT_CMD: "count"
 DESCRIPTION_COUNT_CMD: "Count users by role"
 RESET_ALL_CMD: "reset-all"
 DESCRIPTION_RESET_ALL_CMD: "Reset role for all users"
+USER_ACTIVITIES_CMD: "user-activities"
+DESCRIPTION_USER_ACTIVITIES_CMD: "Retrieve user activities data"
 
 MESSAGE_CMD_OK: "Hey there ! Congratulations, you have lauched the command"
 MESSAGE_CMD_UNAUTHORIZED: "Sorry, you can not do that, the following role to prefix linking are active :"
