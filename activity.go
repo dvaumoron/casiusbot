@@ -128,6 +128,7 @@ func loadActivities(activityPath string, dateFormat string) map[string]activityD
 	}
 	return activities
 }
+
 func loadMemberNames(session *discordgo.Session, guildId string) map[string][2]string {
 	names := map[string][2]string{}
 	guildMembers, err := session.GuildMembers(guildId, "", 1000)
