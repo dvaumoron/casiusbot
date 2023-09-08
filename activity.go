@@ -86,7 +86,7 @@ func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan m
 			data := builder.String()
 
 			if sendFile {
-				dataSender <- [2]string{activityPath}
+				dataSender <- [2]string{activityPath, data}
 			}
 			os.WriteFile(activityPath, []byte(data), 0644)
 		}
