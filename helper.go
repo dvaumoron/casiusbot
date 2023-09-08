@@ -22,7 +22,6 @@ import (
 	"errors"
 	"log"
 	"math/rand"
-	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -111,22 +110,14 @@ func (m ChannelSenderManager) Get(channelId string) chan<- string {
 	return m.channels[channelId]
 }
 
-type pathSender struct {
-	sender chan<- string
-}
-
-func MakePathSender(session *discordgo.Session, channelId string, errorMsg string, cmdName string) pathSender {
+func createDataSender(session *discordgo.Session, channelId string, errorMsg string, cmdName string) chan<- [2]string {
 	if channelId == "" {
-		return pathSender{}
+		return nil
 	}
 
-	pathChan := make(chan string)
-	go sendFile(session, channelId, pathChan, strings.ReplaceAll(errorMsg, cmdPlaceHolder, cmdName))
-	return pathSender{sender: pathChan}
-}
-
-func (s pathSender) SendPath(path string) {
-	s.sender <- path
+	dataChan := make(chan [2]string)
+	go sendFile(session, channelId, dataChan, strings.ReplaceAll(errorMsg, cmdPlaceHolder, cmdName))
+	return dataChan
 }
 
 func initIdSet(trimmedNames []string, nameToId map[string]string) (stringSet, error) {
@@ -216,9 +207,9 @@ func sendMessage(session *discordgo.Session, channelId string, messageReceiver <
 	}
 }
 
-func sendFile(session *discordgo.Session, channelId string, pathReceiver <-chan string, errorMsg string) {
-	for path := range pathReceiver {
-		if innerSendFile(session, channelId, path) {
+func sendFile(session *discordgo.Session, channelId string, dataReceiver <-chan [2]string, errorMsg string) {
+	for pathAndData := range dataReceiver {
+		if innerSendFile(session, channelId, pathAndData[0], pathAndData[1]) {
 			if _, err := session.ChannelMessageSend(channelId, errorMsg); err != nil {
 				log.Println("Message sending failed (2) :", err)
 			}
@@ -226,15 +217,9 @@ func sendFile(session *discordgo.Session, channelId string, pathReceiver <-chan 
 	}
 }
 
-func innerSendFile(session *discordgo.Session, channelId string, path string) bool {
-	file, err := os.Open(path)
-	if err != nil {
-		log.Println("File opening failed :", err)
-		return true
-	}
-	defer file.Close()
-
-	if _, err = session.ChannelFileSend(channelId, path, file); err != nil {
+func innerSendFile(session *discordgo.Session, channelId string, path string, data string) bool {
+	dataReader := strings.NewReader(data)
+	if _, err := session.ChannelFileSend(channelId, path, dataReader); err != nil {
 		log.Println("File sending failed :", err)
 		return true
 	}

@@ -172,7 +172,7 @@ func main() {
 		log.Println("Cannot retrieve the guild channel for news :", targetNewsChannelName)
 		return // to allow defer
 	}
-	if targetActivitiesChannelId == "" && monitorActivity {
+	if targetActivitiesChannelId == "" && monitorActivity && userActivitiesName != "" {
 		log.Println("Cannot retrieve the guild channel for activities :", targetActivitiesChannelName)
 		return // to allow defer
 	}
@@ -336,8 +336,8 @@ func main() {
 	if monitorActivity {
 		saveChan = make(chan bool)
 		go sendTick(saveChan, saveActivityInterval)
-		activitiesChannelSender := MakePathSender(session, targetActivitiesChannelId, errGlobalCmdMsg, userActivitiesName)
-		activitySender := bgManageActivity(session, saveChan, activitiesChannelSender, activityPath, dateFormat, infos)
+
+		activitySender := bgManageActivity(session, saveChan, targetActivitiesChannelId, userActivitiesName, activityPath, dateFormat, infos)
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
 			if !idInSet(u.Member.Roles, ignoredRoleIds) {

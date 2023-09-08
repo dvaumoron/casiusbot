@@ -40,13 +40,14 @@ type activityData struct {
 	lastVocal    time.Time
 }
 
-func bgManageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, sender pathSender, activityPath string, dateFormat string, infos GuildAndConfInfo) chan<- memberActivity {
+func bgManageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, targetChannelId string, cmdName string, activityPath string, dateFormat string, infos GuildAndConfInfo) chan<- memberActivity {
+	dataSender := createDataSender(session, targetChannelId, infos.msgs[2], cmdName)
 	activityChannel := make(chan memberActivity)
-	go manageActivity(session, activityChannel, saveTickReceiver, sender, activityPath, dateFormat, infos)
+	go manageActivity(session, activityChannel, saveTickReceiver, dataSender, activityPath, dateFormat, infos)
 	return activityChannel
 }
 
-func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan memberActivity, saveTickReceiver <-chan bool, sender pathSender, activityPath string, dateFormat string, infos GuildAndConfInfo) {
+func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan memberActivity, saveTickReceiver <-chan bool, dataSender chan<- [2]string, activityPath string, dateFormat string, infos GuildAndConfInfo) {
 	activities := loadActivities(activityPath, dateFormat)
 	for {
 		select {
@@ -82,11 +83,12 @@ func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan m
 				builder.WriteString(activity.lastVocal.Format(dateFormat))
 				builder.WriteByte('\n')
 			}
-			os.WriteFile(activityPath, []byte(builder.String()), 0644)
+			data := builder.String()
 
 			if sendFile {
-				sender.SendPath(activityPath)
+				dataSender <- [2]string{activityPath}
 			}
+			os.WriteFile(activityPath, []byte(data), 0644)
 		}
 	}
 }
