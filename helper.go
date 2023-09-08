@@ -19,11 +19,12 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"log"
 	"math/rand"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -280,28 +281,12 @@ func acceptAll(link string) bool {
 	return true
 }
 
-type nameValueSortByName [][2]string
-
-func (nps nameValueSortByName) Len() int {
-	return len(nps)
-}
-
-func (nps nameValueSortByName) Less(i, j int) bool {
-	return nps[i][0] < nps[j][0]
-}
-
-func (nps nameValueSortByName) Swap(i, j int) {
-	tmp := nps[i]
-	nps[i] = nps[j]
-	nps[j] = tmp
-}
-
 func buildMsgWithNameValueList(baseMsg string, nameToValue map[string]string) string {
 	nameValues := make([][2]string, 0, len(nameToValue))
 	for name, prefix := range nameToValue {
 		nameValues = append(nameValues, [2]string{name, prefix})
 	}
-	sort.Sort(nameValueSortByName(nameValues))
+	slices.SortFunc(nameValues, cmpNameValueAsc)
 
 	var buffer strings.Builder
 	buffer.WriteString(baseMsg)
@@ -312,6 +297,10 @@ func buildMsgWithNameValueList(baseMsg string, nameToValue map[string]string) st
 		buffer.WriteString(nameValue[1])
 	}
 	return buffer.String()
+}
+
+func cmpNameValueAsc(a [2]string, b [2]string) int {
+	return cmp.Compare(a[0], b[0])
 }
 
 func sendTick(tickSender chan<- bool, interval time.Duration) {
