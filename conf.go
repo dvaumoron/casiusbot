@@ -67,12 +67,12 @@ func (c Config) initLog() {
 	if logPath == "" {
 		logPath = "casiusbot.log"
 	}
-	log.SetOutput(io.MultiWriter(log.Writer(), &lumberjack.Logger{
+	log.SetOutput(io.MultiWriter(&lumberjack.Logger{
 		Filename:   c.updatePath(logPath),
 		MaxSize:    1, // megabytes
 		MaxBackups: 5,
 		MaxAge:     28, //days
-	}))
+	}, os.Stderr))
 }
 
 func (c Config) getString(valueConfName string) string {
