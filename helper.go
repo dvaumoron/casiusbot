@@ -202,8 +202,22 @@ func createMessageSender(session *discordgo.Session, channelId string) chan<- st
 
 func sendMessage(session *discordgo.Session, channelId string, messageReceiver <-chan string) {
 	for message := range messageReceiver {
-		if _, err := session.ChannelMessageSend(channelId, message); err != nil {
-			log.Println("Message sending failed :", err)
+		if message := strings.TrimSpace(message); message != "" {
+			if len(message) > 2000 {
+				// TODO improve translated link management
+				if link, message, ok := strings.Cut(message, "\n"); ok {
+					messageReader := strings.NewReader(message)
+					if _, err := session.ChannelFileSendWithMessage(channelId, link, "translated.txt", messageReader); err != nil {
+						log.Println("Translated message sending failed :", err)
+					}
+				} else {
+					log.Println("Message splitting failed")
+				}
+			} else {
+				if _, err := session.ChannelMessageSend(channelId, message); err != nil {
+					log.Println("Message sending failed :", err)
+				}
+			}
 		}
 	}
 }
