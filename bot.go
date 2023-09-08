@@ -336,7 +336,6 @@ func main() {
 	if monitorActivity {
 		saveChan = make(chan bool)
 		go sendTick(saveChan, saveActivityInterval)
-
 		activitySender := bgManageActivity(session, saveChan, targetActivitiesChannelId, userActivitiesName, activityPath, dateFormat, infos)
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
