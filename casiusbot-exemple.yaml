@@ -26,7 +26,7 @@ JOINING_ROLE: ""
 # on set of a prefix role on a user, casiusbot will remove the default role
 # if casiusbot detect a user (on update) without prefix role, it will add the default role
 DEFAULT_ROLE: ""
-# ignored by casiusbot in the management of roles and prefixes and in the monitoring of member activity
+# ignored by casiusbot in the management of roles and prefixes
 IGNORED_ROLES: ["Bots"]
 
 TARGET_REMINDER_CHANNEL: ""
@@ -60,11 +60,12 @@ COUNT_FILTER_TYPE: "cmdPrefix"
 # when COUNT_FILTER_TYPE is list, only role which name are in COUNT_FILTER_ROLES are displayed by the count command
 COUNT_FILTER_ROLES: []
 # without ACTIVITY_FILE_PATH or SAVE_ACTIVITY_INTERVAL (in seconds), member activity monitoring will be disabled
+# member activity of AUTHORIZED_ROLES, FORBIDDEN_ROLES and IGNORED_ROLES are not monitored
 ACTIVITY_FILE_PATH: ""
 SAVE_ACTIVITY_INTERVAL: 0
 DATE_FORMAT: "2/1/2006"
 
-# without APPLY_CMD, CLEAN_CMD, RESET_CMD or COUNT_CMD, the corresponding command is not initialized
+# without APPLY_CMD, CLEAN_CMD, RESET_CMD, COUNT_CMD, RESET_ALL_CMD or USER_ACTIVITIES_CMD, the corresponding command is not initialized
 APPLY_CMD: "apply-prefix"
 DESCRIPTION_APPLY_CMD: "Apply the prefix rule to all users"
 CLEAN_CMD: "clean-prefix"
