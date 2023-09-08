@@ -339,13 +339,13 @@ func main() {
 		activitySender := bgManageActivity(session, saveChan, targetActivitiesChannelId, userActivitiesName, activityPath, dateFormat, infos)
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
-			if !idInSet(u.Member.Roles, ignoredRoleIds) {
+			if u.Member != nil && !idInSet(u.Member.Roles, adminitrativeRoleIds) {
 				activitySender <- memberActivity{userId: u.Author.ID, timestamp: time.Now()}
 			}
 		})
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.VoiceStateUpdate) {
-			if !idInSet(u.Member.Roles, ignoredRoleIds) {
+			if u.Member != nil && !idInSet(u.Member.Roles, adminitrativeRoleIds) {
 				activitySender <- memberActivity{userId: u.UserID, timestamp: time.Now(), vocal: true}
 			}
 		})
