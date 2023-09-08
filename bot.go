@@ -172,7 +172,7 @@ func main() {
 		log.Println("Cannot retrieve the guild channel for news :", targetNewsChannelName)
 		return // to allow defer
 	}
-	if targetActivitiesChannelId == "" && monitorActivity && userActivitiesName != "" {
+	if targetActivitiesChannelId == "" && userActivitiesName != "" {
 		log.Println("Cannot retrieve the guild channel for activities :", targetActivitiesChannelName)
 		return // to allow defer
 	}
