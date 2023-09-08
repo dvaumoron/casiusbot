@@ -47,6 +47,7 @@ type GuildAndConfInfo struct {
 	forbiddenRoleIds           stringSet
 	ignoredRoleIds             stringSet
 	forbiddenAndignoredRoleIds stringSet
+	adminitrativeRoleIds       stringSet
 	cmdRoleIds                 stringSet
 	specialRoleIds             stringSet
 	roleIdToPrefix             map[string]string
@@ -194,11 +195,11 @@ func processMembers(s *discordgo.Session, messageSender chan<- string, cmdName s
 }
 
 func extractNick(member *discordgo.Member) string {
-	nickName := member.Nick
-	if nickName == "" {
-		nickName = member.User.Username
+	nickname := member.Nick
+	if nickname == "" {
+		nickname = member.User.Username
 	}
-	return nickName
+	return nickname
 }
 
 func createMessageSender(session *discordgo.Session, channelId string) chan<- string {
@@ -328,8 +329,8 @@ func buildMsgWithNameValueList(baseMsg string, nameToValue map[string]string) st
 	return buffer.String()
 }
 
-func sendTick(tickSender chan<- empty, interval time.Duration) {
+func sendTick(tickSender chan<- bool, interval time.Duration) {
 	for range time.Tick(interval) {
-		tickSender <- empty{}
+		tickSender <- false
 	}
 }

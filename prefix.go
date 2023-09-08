@@ -139,9 +139,9 @@ func applyPrefix(s *discordgo.Session, messageSender chan<- string, member *disc
 
 func cleanPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos GuildAndConfInfo, userMonitor *IdMonitor) int {
 	counterError := 0
-	for _, guildMember := range guildMembers {
-		if userId := guildMember.User.ID; userId != infos.ownerId && userMonitor.StartProcessing(userId) {
-			nick := extractNick(guildMember)
+	for _, member := range guildMembers {
+		if userId := member.User.ID; userId != infos.ownerId && userMonitor.StartProcessing(userId) {
+			nick := extractNick(member)
 			newNick := cleanPrefixInNick(nick, infos.prefixes)
 			if newNick != nick {
 				if err := s.GuildMemberNickname(infos.guildId, userId, newNick); err != nil {

@@ -40,13 +40,13 @@ type activityData struct {
 	lastVocal    time.Time
 }
 
-func bgManageActivity(session *discordgo.Session, activityPath string, dateFormat string, saveTickReceiver <-chan empty, infos GuildAndConfInfo) chan<- memberActivity {
+func bgManageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, sender pathSender, activityPath string, dateFormat string, infos GuildAndConfInfo) chan<- memberActivity {
 	activityChannel := make(chan memberActivity)
-	go manageActivity(session, activityChannel, activityPath, dateFormat, saveTickReceiver, infos)
+	go manageActivity(session, activityChannel, saveTickReceiver, sender, activityPath, dateFormat, infos)
 	return activityChannel
 }
 
-func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan memberActivity, activityPath string, dateFormat string, saveTickReceiver <-chan empty, infos GuildAndConfInfo) {
+func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan memberActivity, saveTickReceiver <-chan bool, sender pathSender, activityPath string, dateFormat string, infos GuildAndConfInfo) {
 	activities := loadActivities(activityPath, dateFormat)
 	for {
 		select {
@@ -59,22 +59,21 @@ func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan m
 				activity.lastMessage = mActivity.timestamp
 			}
 			activities[mActivity.userId] = activity
-		case <-saveTickReceiver:
-			memberNames := loadMemberNames(session, infos.guildId)
-
+		case sendFile := <-saveTickReceiver:
 			var builder strings.Builder
 			// header
-			builder.WriteString("userId,userName,userNickName,messageCount,lastMessage,lastVocal\n")
-			for userId, name := range memberNames {
-				activity := activities[userId]
+			builder.WriteString("userId,userName,userNickname,messageCount,lastMessage,lastVocal\n")
+			for _, idNames := range loadMemberIdAndNames(session, infos) {
+				activity := activities[idNames[0]]
 
-				builder.WriteString(userId)
+				// user id
+				builder.WriteString(idNames[0])
 				builder.WriteByte(',')
 				// user name
-				builder.WriteString(name[0])
+				builder.WriteString(idNames[1])
 				builder.WriteByte(',')
 				// user nickname
-				builder.WriteString(name[1])
+				builder.WriteString(idNames[2])
 				builder.WriteByte(',')
 				builder.WriteString(strconv.Itoa(activity.messageCount))
 				builder.WriteByte(',')
@@ -84,6 +83,10 @@ func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan m
 				builder.WriteByte('\n')
 			}
 			os.WriteFile(activityPath, []byte(builder.String()), 0644)
+
+			if sendFile {
+				sender.SendPath(activityPath)
+			}
 		}
 	}
 }
@@ -128,24 +131,27 @@ func loadActivities(activityPath string, dateFormat string) map[string]activityD
 	return activities
 }
 
-func loadMemberNames(session *discordgo.Session, guildId string) map[string][2]string {
-	names := map[string][2]string{}
-	guildMembers, err := session.GuildMembers(guildId, "", 1000)
+func loadMemberIdAndNames(session *discordgo.Session, infos GuildAndConfInfo) [][3]string {
+	guildMembers, err := session.GuildMembers(infos.guildId, "", 1000)
 	if err != nil {
 		log.Println("Cannot retrieve guild members (4) :", err)
-		return names
+		return nil
 	}
-	for _, guildMember := range guildMembers {
-		names[guildMember.User.ID] = [2]string{guildMember.User.Username, guildMember.Nick}
+
+	names := make([][3]string, 0, len(guildMembers))
+	for _, member := range guildMembers {
+		userId := member.User.ID
+		if userId != infos.ownerId && !idInSet(member.Roles, infos.adminitrativeRoleIds) {
+			names = append(names, [3]string{userId, member.User.Username, extractNick(member)})
+		}
 	}
 	return names
 }
 
-func userActivitiesCmd(s *discordgo.Session, i *discordgo.InteractionCreate, sender pathSender, activityPath string, saveTickSender chan<- empty, infos GuildAndConfInfo) {
+func userActivitiesCmd(s *discordgo.Session, i *discordgo.InteractionCreate, saveTickSender chan<- bool, infos GuildAndConfInfo) {
 	returnMsg := infos.msgs[0]
 	if idInSet(i.Member.Roles, infos.authorizedRoleIds) {
-		saveTickSender <- empty{}
-		sender.SendPath(activityPath)
+		saveTickSender <- true
 	} else {
 		returnMsg = infos.msgs[1]
 	}

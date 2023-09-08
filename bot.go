@@ -259,6 +259,14 @@ func main() {
 		forbiddenAndignoredRoleIds[roleId] = empty{}
 	}
 
+	adminitrativeRoleIds := stringSet{}
+	for roleId := range forbiddenAndignoredRoleIds {
+		adminitrativeRoleIds[roleId] = empty{}
+	}
+	for roleId := range authorizedRoleIds {
+		adminitrativeRoleIds[roleId] = empty{}
+	}
+
 	specialRoleIds, err := initIdSet(specialRoles, roleNameToId)
 	if err != nil {
 		log.Println(err)
@@ -292,8 +300,8 @@ func main() {
 	infos := GuildAndConfInfo{
 		guildId: guildId, ownerId: ownerId, defaultRoleId: defaultRoleId, authorizedRoleIds: authorizedRoleIds,
 		forbiddenRoleIds: forbiddenRoleIds, ignoredRoleIds: ignoredRoleIds, forbiddenAndignoredRoleIds: forbiddenAndignoredRoleIds,
-		cmdRoleIds: cmdRoleIds, specialRoleIds: specialRoleIds, roleIdToPrefix: roleIdToPrefix, prefixes: prefixes,
-		roleIdToDisplayName: roleIdToDisplayName, msgs: msgs,
+		adminitrativeRoleIds: adminitrativeRoleIds, cmdRoleIds: cmdRoleIds, specialRoleIds: specialRoleIds,
+		roleIdToPrefix: roleIdToPrefix, prefixes: prefixes, roleIdToDisplayName: roleIdToDisplayName, msgs: msgs,
 	}
 
 	guildMembers, err := session.GuildMembers(guildId, "", 1000)
@@ -309,7 +317,6 @@ func main() {
 	channelManager.AddChannel(targetReminderChannelId)
 	prefixChannelSender := channelManager.Get(targetPrefixChannelId)
 	cmdChannelSender := channelManager.Get(targetCmdChannelId)
-	activitiesChannelSender := MakePathSender(session, targetActivitiesChannelId, errGlobalCmdMsg, userActivitiesName)
 
 	userMonitor := MakeIdMonitor()
 	if counterError := applyPrefixes(session, guildMembers, infos, &userMonitor); counterError != 0 {
@@ -325,12 +332,12 @@ func main() {
 		}
 	})
 
-	var saveChan chan empty
-
+	var saveChan chan bool
 	if monitorActivity {
-		saveChan = make(chan empty)
+		saveChan = make(chan bool)
 		go sendTick(saveChan, saveActivityInterval)
-		activitySender := bgManageActivity(session, activityPath, dateFormat, saveChan, infos)
+		activitiesChannelSender := MakePathSender(session, targetActivitiesChannelId, errGlobalCmdMsg, userActivitiesName)
+		activitySender := bgManageActivity(session, saveChan, activitiesChannelSender, activityPath, dateFormat, infos)
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
 			if !idInSet(u.Member.Roles, ignoredRoleIds) {
@@ -396,7 +403,7 @@ func main() {
 	cmdAndRoleIds = nil
 
 	addNonEmpty(execCmds, userActivitiesName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		userActivitiesCmd(s, i, activitiesChannelSender, activityPath, saveChan, infos)
+		userActivitiesCmd(s, i, saveChan, infos)
 	})
 
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
