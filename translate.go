@@ -30,19 +30,20 @@ type Translater interface {
 	Translate(msg string) string
 }
 
-func bgAddTranslationFilter(messageSender chan<- string, selector string, translater Translater) chan<- linkInfo {
+func bgAddTranslationFilter(messageSender chan<- MultipartMessage, selector string, translater Translater) chan<- linkInfo {
 	filteringChan := make(chan linkInfo)
 	go addTranslationFiltering(messageSender, initExtracter(selector), translater, filteringChan)
 	return filteringChan
 }
 
-func addTranslationFiltering(messageSender chan<- string, extracter func(linkInfo) string, translater Translater, filteringChan <-chan linkInfo) {
+func addTranslationFiltering(messageSender chan<- MultipartMessage, extracter func(linkInfo) string, translater Translater, filteringChan <-chan linkInfo) {
 	for info := range filteringChan {
-		var filteredMessageBuilder strings.Builder
-		filteredMessageBuilder.WriteString(info.link)
-		filteredMessageBuilder.WriteByte('\n')
-		filteredMessageBuilder.WriteString(translater.Translate(extracter(info)))
-		messageSender <- filteredMessageBuilder.String()
+		messageSender <- MultipartMessage{
+			message:    info.link,
+			fileName:   "translated.txt",
+			fileData:   translater.Translate(extracter(info)),
+			allowMerge: true,
+		}
 	}
 }
 

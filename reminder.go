@@ -35,7 +35,7 @@ func buildReminderPrefix(config Config, reminderConfName string, guildId string)
 	return reminderBuilder.String()
 }
 
-func remindEvent(session *discordgo.Session, guildId string, delays []time.Duration, messageSender chan<- string, reminderPrefix string, previous time.Time, ticker <-chan time.Time) {
+func remindEvent(session *discordgo.Session, guildId string, delays []time.Duration, messageSender chan<- MultipartMessage, reminderPrefix string, previous time.Time, ticker <-chan time.Time) {
 	for current := range ticker {
 		events, err := session.GuildScheduledEvents(guildId, false)
 		if err != nil {
@@ -49,7 +49,7 @@ func remindEvent(session *discordgo.Session, guildId string, delays []time.Durat
 				// delay  is already negative
 				reminderTime := eventStartTime.Add(delay)
 				if reminderTime.After(previous) && reminderTime.Before(current) {
-					messageSender <- reminderPrefix + event.ID
+					messageSender <- MultipartMessage{message: reminderPrefix + event.ID}
 					// don't test other delay
 					break
 				}

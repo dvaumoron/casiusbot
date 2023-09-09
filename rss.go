@@ -30,7 +30,7 @@ type linkInfo struct {
 	description string
 }
 
-func bgReadMultipleRSS(messageSender chan<- string, feeds []any, translater Translater, startTime time.Time, tickers []chan time.Time) {
+func bgReadMultipleRSS(messageSender chan<- MultipartMessage, feeds []any, translater Translater, startTime time.Time, tickers []chan time.Time) {
 	if len(feeds) == 0 {
 		return
 	}
@@ -49,22 +49,22 @@ func bgReadMultipleRSS(messageSender chan<- string, feeds []any, translater Tran
 	}
 }
 
-func initLinkSender(messageSender chan<- string, defaultLinkSender chan<- linkInfo, translater Translater, selector string) chan<- linkInfo {
+func initLinkSender(messageSender chan<- MultipartMessage, defaultLinkSender chan<- linkInfo, translater Translater, selector string) chan<- linkInfo {
 	if translater != nil && selector != "" {
 		return bgAddTranslationFilter(messageSender, selector, translater)
 	}
 	return defaultLinkSender
 }
 
-func createLinkSender(messageSender chan<- string) chan<- linkInfo {
+func createLinkSender(messageSender chan<- MultipartMessage) chan<- linkInfo {
 	linkChan := make(chan linkInfo)
 	go sendLink(messageSender, linkChan)
 	return linkChan
 }
 
-func sendLink(messageSender chan<- string, linkReceiver <-chan linkInfo) {
+func sendLink(messageSender chan<- MultipartMessage, linkReceiver <-chan linkInfo) {
 	for info := range linkReceiver {
-		messageSender <- info.link
+		messageSender <- MultipartMessage{message: info.link}
 	}
 }
 

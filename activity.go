@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -40,15 +41,16 @@ type activityData struct {
 	lastVocal    time.Time
 }
 
-func bgManageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, targetChannelId string, cmdName string, activityPath string, dateFormat string, infos GuildAndConfInfo) chan<- memberActivity {
-	dataSender := createDataSender(session, targetChannelId, infos.msgs[2], cmdName)
+func bgManageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, dataSender chan<- MultipartMessage, activityPath string, dateFormat string, cmdName string, infos GuildAndConfInfo) chan<- memberActivity {
 	activityChannel := make(chan memberActivity)
-	go manageActivity(session, activityChannel, saveTickReceiver, dataSender, activityPath, dateFormat, infos)
+	go manageActivity(session, activityChannel, saveTickReceiver, dataSender, activityPath, dateFormat, cmdName, infos)
 	return activityChannel
 }
 
-func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan memberActivity, saveTickReceiver <-chan bool, dataSender chan<- [2]string, activityPath string, dateFormat string, infos GuildAndConfInfo) {
+func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan memberActivity, saveTickReceiver <-chan bool, dataSender chan<- MultipartMessage, activityPath string, dateFormat string, cmdName string, infos GuildAndConfInfo) {
 	activities := loadActivities(activityPath, dateFormat)
+	activityFileName := filepath.Base(activityPath)
+	errorMsg := strings.ReplaceAll(infos.msgs[2], cmdPlaceHolder, cmdName)
 	for {
 		select {
 		case mActivity := <-activityChannelReceiver:
@@ -86,7 +88,7 @@ func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan m
 			data := builder.String()
 
 			if sendFile {
-				dataSender <- [2]string{activityPath, data}
+				dataSender <- MultipartMessage{fileName: activityFileName, fileData: data, errorMsg: errorMsg}
 			}
 			os.WriteFile(activityPath, []byte(data), 0644)
 		}

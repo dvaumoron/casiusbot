@@ -315,6 +315,7 @@ func main() {
 	channelManager.AddChannel(targetCmdChannelId)
 	channelManager.AddChannel(targetNewsChannelId)
 	channelManager.AddChannel(targetReminderChannelId)
+	channelManager.AddChannel(targetActivitiesChannelId)
 	prefixChannelSender := channelManager.Get(targetPrefixChannelId)
 	cmdChannelSender := channelManager.Get(targetCmdChannelId)
 
@@ -336,7 +337,7 @@ func main() {
 	if monitorActivity {
 		saveChan = make(chan bool)
 		go sendTick(saveChan, saveActivityInterval)
-		activitySender := bgManageActivity(session, saveChan, targetActivitiesChannelId, userActivitiesName, activityPath, dateFormat, infos)
+		activitySender := bgManageActivity(session, saveChan, channelManager.Get(targetActivitiesChannelId), activityPath, dateFormat, userActivitiesName, infos)
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
 			if u.Member != nil && !idInSet(u.Member.Roles, adminitrativeRoleIds) {

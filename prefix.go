@@ -87,7 +87,7 @@ func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos
 	return counterError
 }
 
-func applyPrefix(s *discordgo.Session, messageSender chan<- string, member *discordgo.Member, infos GuildAndConfInfo, forceSend bool) int {
+func applyPrefix(s *discordgo.Session, messageSender chan<- MultipartMessage, member *discordgo.Member, infos GuildAndConfInfo, forceSend bool) int {
 	counterError := 0
 	userId := member.User.ID
 	roleIds := member.Roles
@@ -119,14 +119,14 @@ func applyPrefix(s *discordgo.Session, messageSender chan<- string, member *disc
 			if forceSend && messageSender != nil {
 				msg := strings.ReplaceAll(infos.msgs[6], "{{user}}", nick)
 				msg = strings.ReplaceAll(msg, "{{role}}", infos.roleIdToDisplayName[usedRoleId])
-				messageSender <- msg
+				messageSender <- MultipartMessage{message: msg}
 			}
 		} else {
 			if err := s.GuildMemberNickname(infos.guildId, userId, newNick); err == nil {
 				if messageSender != nil {
 					msg := strings.ReplaceAll(infos.msgs[5], "{{old}}", nick)
 					msg = strings.ReplaceAll(msg, "{{new}}", newNick)
-					messageSender <- msg
+					messageSender <- MultipartMessage{message: msg}
 				}
 			} else {
 				log.Println("Nickname change failed (2) :", err)

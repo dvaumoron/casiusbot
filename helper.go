@@ -90,13 +90,21 @@ func (m *IdMonitor) StartProcessing(id string) bool {
 	return true
 }
 
+type MultipartMessage struct {
+	message    string
+	fileName   string
+	fileData   string
+	errorMsg   string
+	allowMerge bool
+}
+
 type ChannelSenderManager struct {
-	channels map[string]chan<- string
+	channels map[string]chan<- MultipartMessage
 	session  *discordgo.Session
 }
 
 func MakeChannelSenderManager(session *discordgo.Session) ChannelSenderManager {
-	return ChannelSenderManager{channels: map[string]chan<- string{}, session: session}
+	return ChannelSenderManager{channels: map[string]chan<- MultipartMessage{}, session: session}
 }
 
 func (m ChannelSenderManager) AddChannel(channelId string) {
@@ -107,18 +115,8 @@ func (m ChannelSenderManager) AddChannel(channelId string) {
 	}
 }
 
-func (m ChannelSenderManager) Get(channelId string) chan<- string {
+func (m ChannelSenderManager) Get(channelId string) chan<- MultipartMessage {
 	return m.channels[channelId]
-}
-
-func createDataSender(session *discordgo.Session, channelId string, errorMsg string, cmdName string) chan<- [2]string {
-	if channelId == "" {
-		return nil
-	}
-
-	dataChan := make(chan [2]string)
-	go sendFile(session, channelId, dataChan, strings.ReplaceAll(errorMsg, cmdPlaceHolder, cmdName))
-	return dataChan
 }
 
 func initIdSet(trimmedNames []string, nameToId map[string]string) (stringSet, error) {
@@ -158,7 +156,7 @@ func addNonEmpty[T any](m map[string]T, name string, value T) {
 	}
 }
 
-func membersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- string, cmdName string, infos GuildAndConfInfo, cmdEffect func([]*discordgo.Member) int) {
+func membersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- MultipartMessage, cmdName string, infos GuildAndConfInfo, cmdEffect func([]*discordgo.Member) int) {
 	returnMsg := infos.msgs[0]
 	if idInSet(i.Member.Roles, infos.authorizedRoleIds) {
 		go processMembers(s, messageSender, cmdName, infos, cmdEffect)
@@ -172,7 +170,7 @@ func membersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSen
 	})
 }
 
-func processMembers(s *discordgo.Session, messageSender chan<- string, cmdName string, infos GuildAndConfInfo, cmdEffect func([]*discordgo.Member) int) {
+func processMembers(s *discordgo.Session, messageSender chan<- MultipartMessage, cmdName string, infos GuildAndConfInfo, cmdEffect func([]*discordgo.Member) int) {
 	msg := infos.msgs[2]
 	if guildMembers, err := s.GuildMembers(infos.guildId, "", 1000); err == nil {
 		if counterError := cmdEffect(guildMembers); counterError == 0 {
@@ -183,7 +181,7 @@ func processMembers(s *discordgo.Session, messageSender chan<- string, cmdName s
 	} else {
 		log.Println("Cannot retrieve guild members (3) :", err)
 	}
-	messageSender <- strings.ReplaceAll(msg, cmdPlaceHolder, cmdName)
+	messageSender <- MultipartMessage{message: strings.ReplaceAll(msg, cmdPlaceHolder, cmdName)}
 }
 
 func extractNick(member *discordgo.Member) string {
@@ -194,24 +192,37 @@ func extractNick(member *discordgo.Member) string {
 	return nickname
 }
 
-func createMessageSender(session *discordgo.Session, channelId string) chan<- string {
-	messageChan := make(chan string)
-	go sendMessage(session, channelId, messageChan)
+func createMessageSender(session *discordgo.Session, channelId string) chan<- MultipartMessage {
+	messageChan := make(chan MultipartMessage)
+	go sendMultiMessage(session, channelId, messageChan)
 	return messageChan
 }
 
-func sendMessage(session *discordgo.Session, channelId string, messageReceiver <-chan string) {
-	for message := range messageReceiver {
-		if message := strings.TrimSpace(message); message != "" {
-			if len(message) > 2000 {
-				// TODO improve translated link management
-				if link, message, ok := strings.Cut(message, "\n"); ok {
-					messageReader := strings.NewReader(message)
-					if _, err := session.ChannelFileSendWithMessage(channelId, link, "translated.txt", messageReader); err != nil {
-						log.Println("Translated message sending failed :", err)
+func sendMultiMessage(session *discordgo.Session, channelId string, messageReceiver <-chan MultipartMessage) {
+	for multiMessage := range messageReceiver {
+		if message := strings.TrimSpace(multiMessage.message); message == "" {
+			if multiMessage.fileName != "" && multiMessage.fileData != "" {
+				if sendFile(session, channelId, multiMessage.fileName, multiMessage.fileData) && multiMessage.errorMsg != "" {
+					if _, err := session.ChannelMessageSend(channelId, multiMessage.errorMsg); err != nil {
+						log.Println("Message sending failed (2) :", err)
+					}
+				}
+			}
+		} else {
+			if multiMessage.fileName != "" && multiMessage.fileData != "" {
+				if multiMessage.allowMerge && len(multiMessage.message)+len(multiMessage.fileData) < 2000 {
+					var builder strings.Builder
+					builder.WriteString(message)
+					builder.WriteByte('\n')
+					builder.WriteString(multiMessage.fileData)
+					if _, err := session.ChannelMessageSend(channelId, builder.String()); err != nil {
+						log.Println("Message sending failed (3) :", err)
 					}
 				} else {
-					log.Println("Message splitting failed")
+					dataReader := strings.NewReader(multiMessage.fileData)
+					if _, err := session.ChannelFileSendWithMessage(channelId, message, multiMessage.fileName, dataReader); err != nil {
+						log.Println("Message with file sending failed :", err)
+					}
 				}
 			} else {
 				if _, err := session.ChannelMessageSend(channelId, message); err != nil {
@@ -222,17 +233,7 @@ func sendMessage(session *discordgo.Session, channelId string, messageReceiver <
 	}
 }
 
-func sendFile(session *discordgo.Session, channelId string, dataReceiver <-chan [2]string, errorMsg string) {
-	for pathAndData := range dataReceiver {
-		if innerSendFile(session, channelId, pathAndData[0], pathAndData[1]) {
-			if _, err := session.ChannelMessageSend(channelId, errorMsg); err != nil {
-				log.Println("Message sending failed (2) :", err)
-			}
-		}
-	}
-}
-
-func innerSendFile(session *discordgo.Session, channelId string, path string, data string) bool {
+func sendFile(session *discordgo.Session, channelId string, path string, data string) bool {
 	dataReader := strings.NewReader(data)
 	if _, err := session.ChannelFileSend(channelId, path, dataReader); err != nil {
 		log.Println("File sending failed :", err)

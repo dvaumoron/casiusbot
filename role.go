@@ -35,9 +35,9 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 	} else if userMonitor.StartProcessing(userId) {
 		defer userMonitor.StopProcessing(userId)
 
-		messageQueue := make(chan string, 1)
+		messageQueue := make(chan MultipartMessage, 1)
 		if counterError := addRole(s, messageQueue, i.Member, addedRoleId, infos, true); counterError == 0 {
-			returnMsg = <-messageQueue
+			returnMsg = (<-messageQueue).message
 		} else {
 			returnMsg = strings.ReplaceAll(infos.msgs[8], numErrorPlaceHolder, strconv.Itoa(counterError))
 		}
@@ -49,7 +49,7 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 	})
 }
 
-func addRole(s *discordgo.Session, messageSender chan<- string, member *discordgo.Member, addedRoleId string, infos GuildAndConfInfo, forceSend bool) int {
+func addRole(s *discordgo.Session, messageSender chan<- MultipartMessage, member *discordgo.Member, addedRoleId string, infos GuildAndConfInfo, forceSend bool) int {
 	toAdd := true
 	counterError := 0
 	userId := member.User.ID
