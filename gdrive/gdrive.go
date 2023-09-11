@@ -39,12 +39,12 @@ type DriveConfig struct {
 }
 
 func ReadDriveConfig(credentialsPath string, tokenPath string) (DriveConfig, error) {
-	config, err := ReadOAuthConfig(credentialsPath)
+	config, err := readOAuthConfig(credentialsPath)
 	if err != nil {
 		return DriveConfig{}, err
 	}
 
-	token, err := ReadToken(tokenPath)
+	token, err := readToken(tokenPath)
 	if err != nil {
 		return DriveConfig{}, err
 	}
@@ -52,7 +52,7 @@ func ReadDriveConfig(credentialsPath string, tokenPath string) (DriveConfig, err
 	return DriveConfig{config: config, token: token}, nil
 }
 
-func ReadOAuthConfig(credentialsPath string) (*oauth2.Config, error) {
+func readOAuthConfig(credentialsPath string) (*oauth2.Config, error) {
 	credentialsData, err := os.ReadFile(credentialsPath)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func ReadOAuthConfig(credentialsPath string) (*oauth2.Config, error) {
 	return google.ConfigFromJSON(credentialsData, drive.DriveScope)
 }
 
-func ReadToken(tokenPath string) (*oauth2.Token, error) {
+func readToken(tokenPath string) (*oauth2.Token, error) {
 	file, err := os.Open(tokenPath)
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func ReadToken(tokenPath string) (*oauth2.Token, error) {
 
 // Request a token from the web, then write the retrieved token in a file.
 func SaveTokenFromWeb(ctx context.Context, credentialsPath string, tokenPath string) {
-	config, err := ReadOAuthConfig(credentialsPath)
+	config, err := readOAuthConfig(credentialsPath)
 	if err != nil {
 		log.Println("Unable to read OAuth config :", err)
 		return
