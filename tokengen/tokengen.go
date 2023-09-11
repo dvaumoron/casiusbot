@@ -34,7 +34,7 @@ func main() {
 	}
 
 	ctx := context.Background()
-	credentialsPath := config.Require("DRIVE_CREDENTIALS_PATH")
-	tokenPath := config.Require("DRIVE_TOKEN_PATH")
+	credentialsPath := config.GetPath("DRIVE_CREDENTIALS_PATH")
+	tokenPath := config.GetPath("DRIVE_TOKEN_PATH")
 	gdrive.SaveTokenFromWeb(ctx, credentialsPath, tokenPath)
 }

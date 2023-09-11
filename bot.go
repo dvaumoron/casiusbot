@@ -94,8 +94,8 @@ func main() {
 
 	var activityFileSender chan<- common.MultipartMessage
 	monitorActivity := activityPath != "" && saveActivityInterval > 0
-	credentialsPath := config.GetString("DRIVE_CREDENTIALS_PATH")
-	tokenPath := config.GetString("DRIVE_TOKEN_PATH")
+	credentialsPath := config.GetPath("DRIVE_CREDENTIALS_PATH")
+	tokenPath := config.GetPath("DRIVE_TOKEN_PATH")
 	driveFolderId := config.GetString("DRIVE_FOLDER_ID")
 	if monitorActivity && credentialsPath != "" && tokenPath != "" && driveFolderId != "" {
 		driveConfig, err := gdrive.ReadDriveConfig(credentialsPath, tokenPath)
