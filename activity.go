@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/dvaumoron/casiusbot/common"
 )
 
 type memberActivity struct {
@@ -41,16 +42,16 @@ type activityData struct {
 	lastVocal    time.Time
 }
 
-func bgManageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, dataSender chan<- MultipartMessage, activityPath string, dateFormat string, cmdName string, infos GuildAndConfInfo) chan<- memberActivity {
+func bgManageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, dataSender chan<- common.MultipartMessage, activityPath string, dateFormat string, cmdName string, infos common.GuildAndConfInfo) chan<- memberActivity {
 	activityChannel := make(chan memberActivity)
 	go manageActivity(session, activityChannel, saveTickReceiver, dataSender, activityPath, dateFormat, cmdName, infos)
 	return activityChannel
 }
 
-func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan memberActivity, saveTickReceiver <-chan bool, dataSender chan<- MultipartMessage, activityPath string, dateFormat string, cmdName string, infos GuildAndConfInfo) {
+func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan memberActivity, saveTickReceiver <-chan bool, dataSender chan<- common.MultipartMessage, activityPath string, dateFormat string, cmdName string, infos common.GuildAndConfInfo) {
 	activities := loadActivities(activityPath, dateFormat)
 	activityFileName := filepath.Base(activityPath)
-	errorMsg := strings.ReplaceAll(infos.msgs[2], cmdPlaceHolder, cmdName)
+	errorMsg := strings.ReplaceAll(infos.Msgs[2], common.CmdPlaceHolder, cmdName)
 	for {
 		select {
 		case mActivity := <-activityChannelReceiver:
@@ -88,7 +89,7 @@ func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan m
 			data := builder.String()
 
 			if sendFile {
-				dataSender <- MultipartMessage{fileName: activityFileName, fileData: data, errorMsg: errorMsg}
+				dataSender <- common.MultipartMessage{FileName: activityFileName, FileData: data, ErrorMsg: errorMsg}
 			}
 			os.WriteFile(activityPath, []byte(data), 0644)
 		}
@@ -135,8 +136,8 @@ func loadActivities(activityPath string, dateFormat string) map[string]activityD
 	return activities
 }
 
-func loadMemberIdAndNames(session *discordgo.Session, infos GuildAndConfInfo) [][3]string {
-	guildMembers, err := session.GuildMembers(infos.guildId, "", 1000)
+func loadMemberIdAndNames(session *discordgo.Session, infos common.GuildAndConfInfo) [][3]string {
+	guildMembers, err := session.GuildMembers(infos.GuildId, "", 1000)
 	if err != nil {
 		log.Println("Cannot retrieve guild members (4) :", err)
 		return nil
@@ -145,19 +146,19 @@ func loadMemberIdAndNames(session *discordgo.Session, infos GuildAndConfInfo) []
 	names := make([][3]string, 0, len(guildMembers))
 	for _, member := range guildMembers {
 		userId := member.User.ID
-		if userId != infos.ownerId && !idInSet(member.Roles, infos.adminitrativeRoleIds) {
-			names = append(names, [3]string{userId, member.User.Username, extractNick(member)})
+		if userId != infos.OwnerId && !common.IdInSet(member.Roles, infos.AdminitrativeRoleIds) {
+			names = append(names, [3]string{userId, member.User.Username, common.ExtractNick(member)})
 		}
 	}
 	return names
 }
 
-func userActivitiesCmd(s *discordgo.Session, i *discordgo.InteractionCreate, saveTickSender chan<- bool, infos GuildAndConfInfo) {
-	returnMsg := infos.msgs[0]
-	if idInSet(i.Member.Roles, infos.authorizedRoleIds) {
+func userActivitiesCmd(s *discordgo.Session, i *discordgo.InteractionCreate, saveTickSender chan<- bool, infos common.GuildAndConfInfo) {
+	returnMsg := infos.Msgs[0]
+	if common.IdInSet(i.Member.Roles, infos.AuthorizedRoleIds) {
 		saveTickSender <- true
 	} else {
-		returnMsg = infos.msgs[1]
+		returnMsg = infos.Msgs[1]
 	}
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{

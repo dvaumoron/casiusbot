@@ -5,7 +5,7 @@ DEEPL_TOKEN: ""
 DEEPL_API_URL: "https://api-free.deepl.com"
 # without LOG_PATH, output default to casiusbot.log
 LOG_PATH: ""
-PREFIX_RULES: 
+PREFIX_RULES:
   # /roleCmd will add the role RoleName1 to the user
   - ROLE: "RoleName1"
     PREFIX: "foo"
@@ -32,7 +32,7 @@ IGNORED_ROLES: ["Bots"]
 TARGET_REMINDER_CHANNEL: ""
 # without TARGET_PREFIX_CHANNEL, nickname update message are disabled
 TARGET_PREFIX_CHANNEL: ""
-# TARGET_CMD_CHANNEL is used to send message when apply, clean or reset all background work is finished 
+# TARGET_CMD_CHANNEL is used to send message when apply, clean or reset all background work is finished
 TARGET_CMD_CHANNEL: ""
 TARGET_NEWS_CHANNEL: ""
 # TARGET_ACTIVITIES_CHANNEL is used to send user activities file
@@ -46,9 +46,9 @@ CHECK_INTERVAL: 0
 # in seconds (optional)
 INITIAL_BACKWARD_LOADING: 0
 # without FEEDS, RSS checking will be disabled
-FEEDS: 
+FEEDS:
   - URL: ""
-    CHECKER: "" 
+    CHECKER: ""
     TRANSLATE_SELECTOR: ""
 # optional (help the translation API)
 TRANSLATE_SOURCE_LANG: ""
@@ -64,6 +64,11 @@ COUNT_FILTER_ROLES: []
 ACTIVITY_FILE_PATH: ""
 SAVE_ACTIVITY_INTERVAL: 0
 DATE_FORMAT: "2/1/2006"
+# with DRIVE_CREDENTIALS_PATH, DRIVE_TOKEN_PATH and DRIVE_FOLDER_ID, activity file are send to the google drive folder,
+# instead of the discord channel TARGET_ACTIVITIES_CHANNEL
+DRIVE_CREDENTIALS_PATH: ""
+DRIVE_TOKEN_PATH: ""
+DRIVE_FOLDER_ID: ""
 
 # without APPLY_CMD, CLEAN_CMD, RESET_CMD, COUNT_CMD, RESET_ALL_CMD or USER_ACTIVITIES_CMD, the corresponding command is not initialized
 APPLY_CMD: "apply-prefix"

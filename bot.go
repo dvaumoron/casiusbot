@@ -27,49 +27,51 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/dvaumoron/casiusbot/common"
+	"github.com/dvaumoron/casiusbot/gdrive"
 )
 
 func main() {
-	config, err := readConfig()
+	config, err := common.ReadConfig()
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	roleNameToPrefix, prefixes, cmdAndRoleNames, specialRoles := config.getPrefixConfig()
+	roleNameToPrefix, prefixes, cmdAndRoleNames, specialRoles := config.GetPrefixConfig()
 
-	okCmdMsg := config.getString("MESSAGE_CMD_OK")
-	errUnauthorizedCmdMsg := buildMsgWithNameValueList(config.getString("MESSAGE_CMD_UNAUTHORIZED"), roleNameToPrefix)
-	errGlobalCmdMsg := config.getString("MESSAGE_CMD_GLOBAL_ERROR")
-	errPartialCmdMsg := config.getString("MESSAGE_CMD_PARTIAL_ERROR")
-	countCmdMsg := config.getString("MESSAGE_CMD_COUNT")
-	prefixMsg := config.getString("MESSAGE_PREFIX")
-	noChangeMsg := config.getString("MESSAGE_NO_CHANGE")
-	endedCmdMsg := config.getString("MESSAGE_CMD_ENDED")
-	ownerMsg := config.getString("MESSAGE_OWNER")
+	okCmdMsg := config.GetString("MESSAGE_CMD_OK")
+	errUnauthorizedCmdMsg := common.BuildMsgWithNameValueList(config.GetString("MESSAGE_CMD_UNAUTHORIZED"), roleNameToPrefix)
+	errGlobalCmdMsg := config.GetString("MESSAGE_CMD_GLOBAL_ERROR")
+	errPartialCmdMsg := config.GetString("MESSAGE_CMD_PARTIAL_ERROR")
+	countCmdMsg := config.GetString("MESSAGE_CMD_COUNT")
+	prefixMsg := config.GetString("MESSAGE_PREFIX")
+	noChangeMsg := config.GetString("MESSAGE_NO_CHANGE")
+	endedCmdMsg := config.GetString("MESSAGE_CMD_ENDED")
+	ownerMsg := config.GetString("MESSAGE_OWNER")
 	msgs := [...]string{
 		okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg, prefixMsg,
-		noChangeMsg, endedCmdMsg, strings.ReplaceAll(errPartialCmdMsg, cmdPlaceHolder+" ", ""), ownerMsg,
+		noChangeMsg, endedCmdMsg, strings.ReplaceAll(errPartialCmdMsg, common.CmdPlaceHolder+" ", ""), ownerMsg,
 	}
 
-	guildId := config.require("GUILD_ID")
-	joiningRole := config.getString("JOINING_ROLE")
-	defaultRole := config.require("DEFAULT_ROLE")
-	gameList := config.getStringSlice("GAME_LIST")
-	updateGameInterval := config.getDurationSec("UPDATE_GAME_INTERVAL")
-	feeds := config.getSlice("FEEDS")
-	checkInterval := config.getDurationSec("CHECK_INTERVAL")
-	activityPath := config.getPath("ACTIVITY_FILE_PATH")
-	saveActivityInterval := config.getDurationSec("SAVE_ACTIVITY_INTERVAL")
-	dateFormat := config.getString("DATE_FORMAT")
-	reminderDelays := config.getDelayMins("REMINDER_BEFORES")
+	guildId := config.Require("GUILD_ID")
+	joiningRole := config.GetString("JOINING_ROLE")
+	defaultRole := config.Require("DEFAULT_ROLE")
+	gameList := config.GetStringSlice("GAME_LIST")
+	updateGameInterval := config.GetDurationSec("UPDATE_GAME_INTERVAL")
+	feeds := config.GetSlice("FEEDS")
+	checkInterval := config.GetDurationSec("CHECK_INTERVAL")
+	activityPath := config.GetPath("ACTIVITY_FILE_PATH")
+	saveActivityInterval := config.GetDurationSec("SAVE_ACTIVITY_INTERVAL")
+	dateFormat := config.GetString("DATE_FORMAT")
+	reminderDelays := config.GetDelayMins("REMINDER_BEFORES")
 	reminderPrefix := buildReminderPrefix(config, "REMINDER_TEXT", guildId)
 
-	targetReminderChannelName := config.require("TARGET_REMINDER_CHANNEL")
-	targetPrefixChannelName := config.getString("TARGET_PREFIX_CHANNEL")
-	targetCmdChannelName := config.getString("TARGET_CMD_CHANNEL")
+	targetReminderChannelName := config.Require("TARGET_REMINDER_CHANNEL")
+	targetPrefixChannelName := config.GetString("TARGET_PREFIX_CHANNEL")
+	targetCmdChannelName := config.GetString("TARGET_CMD_CHANNEL")
 	targetNewsChannelName := ""
-	targetActivitiesChannelName := config.getString("TARGET_ACTIVITIES_CHANNEL")
+	targetActivitiesChannelName := config.GetString("TARGET_ACTIVITIES_CHANNEL")
 
 	if checkInterval == 0 {
 		log.Fatalln("CHECK_INTERVAL is required")
@@ -79,32 +81,44 @@ func main() {
 	feedNumber := len(feeds)
 	feedActived := feedNumber != 0
 	if feedActived {
-		targetNewsChannelName = config.require("TARGET_NEWS_CHANNEL")
-		if deepLToken := config.getString("DEEPL_TOKEN"); deepLToken != "" {
-			deepLUrl := config.require("DEEPL_API_URL")
-			sourceLang := config.getString("TRANSLATE_SOURCE_LANG")
-			targetLang := config.require("TRANSLATE_TARGET_LANG")
-			messageError := config.require("MESSAGE_TRANSLATE_ERROR")
-			messageLimit := config.require("MESSAGE_TRANSLATE_LIMIT")
+		targetNewsChannelName = config.Require("TARGET_NEWS_CHANNEL")
+		if deepLToken := config.GetString("DEEPL_TOKEN"); deepLToken != "" {
+			deepLUrl := config.Require("DEEPL_API_URL")
+			sourceLang := config.GetString("TRANSLATE_SOURCE_LANG")
+			targetLang := config.Require("TRANSLATE_TARGET_LANG")
+			messageError := config.Require("MESSAGE_TRANSLATE_ERROR")
+			messageLimit := config.Require("MESSAGE_TRANSLATE_LIMIT")
 			translater = makeDeepLClient(deepLUrl, deepLToken, sourceLang, targetLang, messageError, messageLimit)
 		}
 	}
 
+	var activityFileSender chan<- common.MultipartMessage
 	monitorActivity := activityPath != "" && saveActivityInterval > 0
+	credentialsPath := config.GetString("DRIVE_CREDENTIALS_PATH")
+	tokenPath := config.GetString("DRIVE_TOKEN_PATH")
+	driveFolderId := config.GetString("DRIVE_FOLDER_ID")
+	if monitorActivity && credentialsPath != "" && tokenPath != "" && driveFolderId != "" {
+		driveConfig, err := gdrive.ReadDriveConfig(credentialsPath, tokenPath)
+		if err != nil {
+			log.Fatalln("Drive config initialization failed :", err)
+		}
 
-	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+5)
-	applyName, cmds := appendCommand(cmds, config, "APPLY_CMD", "DESCRIPTION_APPLY_CMD")
-	cleanName, cmds := appendCommand(cmds, config, "CLEAN_CMD", "DESCRIPTION_CLEAN_CMD")
-	resetName, cmds := appendCommand(cmds, config, "RESET_CMD", "DESCRIPTION_RESET_CMD")
-	resetAllName, cmds := appendCommand(cmds, config, "RESET_ALL_CMD", "DESCRIPTION_RESET_ALL_CMD")
-	countName, cmds := appendCommand(cmds, config, "COUNT_CMD", "DESCRIPTION_COUNT_CMD")
-	roleCmdDesc := config.require("DESCRIPTION_ROLE_CMD")
-	var userActivitiesName string
-	if monitorActivity {
-		userActivitiesName, cmds = appendCommand(cmds, config, "USER_ACTIVITIES_CMD", "DESCRIPTION_USER_ACTIVITIES_CMD")
+		activityFileSender = gdrive.CreateDriveSender(driveConfig, driveFolderId)
 	}
 
-	session, err := discordgo.New("Bot " + config.require("BOT_TOKEN"))
+	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+5)
+	applyName, cmds := common.AppendCommand(cmds, config, "APPLY_CMD", "DESCRIPTION_APPLY_CMD")
+	cleanName, cmds := common.AppendCommand(cmds, config, "CLEAN_CMD", "DESCRIPTION_CLEAN_CMD")
+	resetName, cmds := common.AppendCommand(cmds, config, "RESET_CMD", "DESCRIPTION_RESET_CMD")
+	resetAllName, cmds := common.AppendCommand(cmds, config, "RESET_ALL_CMD", "DESCRIPTION_RESET_ALL_CMD")
+	countName, cmds := common.AppendCommand(cmds, config, "COUNT_CMD", "DESCRIPTION_COUNT_CMD")
+	roleCmdDesc := config.Require("DESCRIPTION_ROLE_CMD")
+	var userActivitiesName string
+	if monitorActivity {
+		userActivitiesName, cmds = common.AppendCommand(cmds, config, "USER_ACTIVITIES_CMD", "DESCRIPTION_USER_ACTIVITIES_CMD")
+	}
+
+	session, err := discordgo.New("Bot " + config.Require("BOT_TOKEN"))
 	if err != nil {
 		log.Fatalln("Cannot create the bot :", err)
 	}
@@ -172,7 +186,7 @@ func main() {
 		log.Println("Cannot retrieve the guild channel for news :", targetNewsChannelName)
 		return // to allow defer
 	}
-	if targetActivitiesChannelId == "" && userActivitiesName != "" {
+	if targetActivitiesChannelId == "" && userActivitiesName != "" && activityFileSender == nil {
 		log.Println("Cannot retrieve the guild channel for activities :", targetActivitiesChannelName)
 		return // to allow defer
 	}
@@ -185,7 +199,7 @@ func main() {
 	targetActivitiesChannelName = ""
 
 	roleNameToId := map[string]string{}
-	prefixRoleIds := stringSet{}
+	prefixRoleIds := common.StringSet{}
 	roleIdToPrefix := map[string]string{}
 	roleIdToDisplayName := map[string]string{}
 	for _, guildRole := range guildRoles {
@@ -195,7 +209,7 @@ func main() {
 		displayName := name
 		if prefix, ok := roleNameToPrefix[name]; ok {
 			roleIdToPrefix[id] = prefix
-			prefixRoleIds[id] = empty{}
+			prefixRoleIds[id] = common.Empty{}
 			var buffer strings.Builder
 			buffer.WriteString(name)
 			buffer.WriteByte(' ')
@@ -208,7 +222,7 @@ func main() {
 	roleNameToPrefix = nil
 	guildRoles = nil
 
-	cmdRoleIds := stringSet{}
+	cmdRoleIds := common.StringSet{}
 	cmdAndRoleIds := make([][2]string, 0, len(cmdAndRoleNames))
 	for _, cmdAndRoleName := range cmdAndRoleNames {
 		roleId := roleNameToId[cmdAndRoleName[1]]
@@ -219,18 +233,18 @@ func main() {
 		cmds = append(cmds, &discordgo.ApplicationCommand{
 			Name: cmdAndRoleName[0], Description: strings.ReplaceAll(roleCmdDesc, "{{role}}", roleIdToDisplayName[roleId]),
 		})
-		cmdRoleIds[roleId] = empty{}
+		cmdRoleIds[roleId] = common.Empty{}
 		cmdAndRoleIds = append(cmdAndRoleIds, [2]string{cmdAndRoleName[0], roleId})
 	}
 	// for GC cleaning
 	cmdAndRoleNames = nil
 
-	authorizedRoleIds, err := config.getIdSet("AUTHORIZED_ROLES", roleNameToId)
+	authorizedRoleIds, err := config.GetIdSet("AUTHORIZED_ROLES", roleNameToId)
 	if err != nil {
 		log.Println(err)
 		return // to allow defer
 	}
-	forbiddenRoleIds, err := config.getIdSet("FORBIDDEN_ROLES", roleNameToId)
+	forbiddenRoleIds, err := config.GetIdSet("FORBIDDEN_ROLES", roleNameToId)
 	if err != nil {
 		log.Println(err)
 		return // to allow defer
@@ -244,30 +258,30 @@ func main() {
 	// for GC cleaning
 	defaultRole = ""
 
-	ignoredRoleIds, err := config.getIdSet("IGNORED_ROLES", roleNameToId)
+	ignoredRoleIds, err := config.GetIdSet("IGNORED_ROLES", roleNameToId)
 	if err != nil {
 		log.Println(err)
 		return // to allow defer
 	}
 
 	// merge the two categories
-	forbiddenAndignoredRoleIds := stringSet{}
+	forbiddenAndignoredRoleIds := common.StringSet{}
 	for roleId := range forbiddenRoleIds {
-		forbiddenAndignoredRoleIds[roleId] = empty{}
+		forbiddenAndignoredRoleIds[roleId] = common.Empty{}
 	}
 	for roleId := range ignoredRoleIds {
-		forbiddenAndignoredRoleIds[roleId] = empty{}
+		forbiddenAndignoredRoleIds[roleId] = common.Empty{}
 	}
 
-	adminitrativeRoleIds := stringSet{}
+	adminitrativeRoleIds := common.StringSet{}
 	for roleId := range forbiddenAndignoredRoleIds {
-		adminitrativeRoleIds[roleId] = empty{}
+		adminitrativeRoleIds[roleId] = common.Empty{}
 	}
 	for roleId := range authorizedRoleIds {
-		adminitrativeRoleIds[roleId] = empty{}
+		adminitrativeRoleIds[roleId] = common.Empty{}
 	}
 
-	specialRoleIds, err := initIdSet(specialRoles, roleNameToId)
+	specialRoleIds, err := common.InitIdSet(specialRoles, roleNameToId)
 	if err != nil {
 		log.Println(err)
 		return // to allow defer
@@ -275,10 +289,10 @@ func main() {
 	// for GC cleaning
 	specialRoles = nil
 
-	var countFilterRoleIds stringSet
-	switch countFilterType := config.getString("COUNT_FILTER_TYPE"); countFilterType {
+	var countFilterRoleIds common.StringSet
+	switch countFilterType := config.GetString("COUNT_FILTER_TYPE"); countFilterType {
 	case "list":
-		countFilterRoleIds, err = config.getIdSet("COUNT_FILTER_ROLES", roleNameToId)
+		countFilterRoleIds, err = config.GetIdSet("COUNT_FILTER_ROLES", roleNameToId)
 		if err != nil {
 			log.Println(err)
 			return // to allow defer
@@ -297,11 +311,11 @@ func main() {
 	roleNameToId = nil
 	prefixRoleIds = nil
 
-	infos := GuildAndConfInfo{
-		guildId: guildId, ownerId: ownerId, defaultRoleId: defaultRoleId, authorizedRoleIds: authorizedRoleIds,
-		forbiddenRoleIds: forbiddenRoleIds, ignoredRoleIds: ignoredRoleIds, forbiddenAndignoredRoleIds: forbiddenAndignoredRoleIds,
-		adminitrativeRoleIds: adminitrativeRoleIds, cmdRoleIds: cmdRoleIds, specialRoleIds: specialRoleIds,
-		roleIdToPrefix: roleIdToPrefix, prefixes: prefixes, roleIdToDisplayName: roleIdToDisplayName, msgs: msgs,
+	infos := common.GuildAndConfInfo{
+		GuildId: guildId, OwnerId: ownerId, DefaultRoleId: defaultRoleId, AuthorizedRoleIds: authorizedRoleIds,
+		ForbiddenRoleIds: forbiddenRoleIds, IgnoredRoleIds: ignoredRoleIds, ForbiddenAndignoredRoleIds: forbiddenAndignoredRoleIds,
+		AdminitrativeRoleIds: adminitrativeRoleIds, CmdRoleIds: cmdRoleIds, SpecialRoleIds: specialRoleIds,
+		RoleIdToPrefix: roleIdToPrefix, Prefixes: prefixes, RoleIdToDisplayName: roleIdToDisplayName, Msgs: msgs,
 	}
 
 	guildMembers, err := session.GuildMembers(guildId, "", 1000)
@@ -310,16 +324,19 @@ func main() {
 		return // to allow defer
 	}
 
-	channelManager := MakeChannelSenderManager(session)
+	channelManager := common.MakeChannelSenderManager(session)
 	channelManager.AddChannel(targetPrefixChannelId)
 	channelManager.AddChannel(targetCmdChannelId)
 	channelManager.AddChannel(targetNewsChannelId)
 	channelManager.AddChannel(targetReminderChannelId)
-	channelManager.AddChannel(targetActivitiesChannelId)
+	if activityFileSender == nil {
+		channelManager.AddChannel(targetActivitiesChannelId)
+		activityFileSender = channelManager.Get(targetActivitiesChannelId)
+	}
 	prefixChannelSender := channelManager.Get(targetPrefixChannelId)
 	cmdChannelSender := channelManager.Get(targetCmdChannelId)
 
-	userMonitor := MakeIdMonitor()
+	userMonitor := common.MakeIdMonitor()
 	if counterError := applyPrefixes(session, guildMembers, infos, &userMonitor); counterError != 0 {
 		log.Println("Trying to apply prefixes at startup generate errors :", counterError)
 	}
@@ -336,17 +353,17 @@ func main() {
 	var saveChan chan bool
 	if monitorActivity {
 		saveChan = make(chan bool)
-		go sendTick(saveChan, saveActivityInterval)
-		activitySender := bgManageActivity(session, saveChan, channelManager.Get(targetActivitiesChannelId), activityPath, dateFormat, userActivitiesName, infos)
+		go common.SendTick(saveChan, saveActivityInterval)
+		activitySender := bgManageActivity(session, saveChan, activityFileSender, activityPath, dateFormat, userActivitiesName, infos)
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
-			if u.Member != nil && !idInSet(u.Member.Roles, adminitrativeRoleIds) {
+			if u.Member != nil && !common.IdInSet(u.Member.Roles, adminitrativeRoleIds) {
 				activitySender <- memberActivity{userId: u.Author.ID, timestamp: time.Now()}
 			}
 		})
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.VoiceStateUpdate) {
-			if u.Member != nil && !idInSet(u.Member.Roles, adminitrativeRoleIds) {
+			if u.Member != nil && !common.IdInSet(u.Member.Roles, adminitrativeRoleIds) {
 				activitySender <- memberActivity{userId: u.UserID, timestamp: time.Now(), vocal: true}
 			}
 		})
@@ -364,21 +381,21 @@ func main() {
 	joiningRole = ""
 
 	execCmds := map[string]func(*discordgo.Session, *discordgo.InteractionCreate){}
-	addNonEmpty(execCmds, applyName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		membersCmd(s, i, cmdChannelSender, applyName, infos, func(guildMembers []*discordgo.Member) int {
+	common.AddNonEmpty(execCmds, applyName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		common.MembersCmd(s, i, cmdChannelSender, applyName, infos, func(guildMembers []*discordgo.Member) int {
 			return applyPrefixes(s, guildMembers, infos, &userMonitor)
 		})
 	})
-	addNonEmpty(execCmds, cleanName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		membersCmd(s, i, cmdChannelSender, cleanName, infos, func(guildMembers []*discordgo.Member) int {
+	common.AddNonEmpty(execCmds, cleanName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		common.MembersCmd(s, i, cmdChannelSender, cleanName, infos, func(guildMembers []*discordgo.Member) int {
 			return cleanPrefixes(s, guildMembers, infos, &userMonitor)
 		})
 	})
-	addNonEmpty(execCmds, resetName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	common.AddNonEmpty(execCmds, resetName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		addRoleCmd(s, i, defaultRoleId, infos, &userMonitor)
 	})
-	addNonEmpty(execCmds, resetAllName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		membersCmd(s, i, cmdChannelSender, resetAllName, infos, func(guildMembers []*discordgo.Member) int {
+	common.AddNonEmpty(execCmds, resetAllName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		common.MembersCmd(s, i, cmdChannelSender, resetAllName, infos, func(guildMembers []*discordgo.Member) int {
 			return resetRoleAll(s, guildMembers, infos, &userMonitor)
 		})
 	})
@@ -389,7 +406,7 @@ func main() {
 			return extractRoleCountWithFilter(guildMembers, countFilterRoleIds)
 		}
 	}
-	addNonEmpty(execCmds, countName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	common.AddNonEmpty(execCmds, countName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		countRoleCmd(s, i, roleCountExtracter, infos)
 	})
 
@@ -402,7 +419,7 @@ func main() {
 	// for GC cleaning
 	cmdAndRoleIds = nil
 
-	addNonEmpty(execCmds, userActivitiesName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	common.AddNonEmpty(execCmds, userActivitiesName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		userActivitiesCmd(s, i, saveChan, infos)
 	})
 
@@ -419,12 +436,12 @@ func main() {
 		}
 	}
 
-	go updateGameStatus(session, gameList, updateGameInterval)
+	go common.UpdateGameStatus(session, gameList, updateGameInterval)
 
-	tickers := launchTickers(feedNumber+1, checkInterval)
+	tickers := common.LaunchTickers(feedNumber+1, checkInterval)
 
 	startTime := time.Now().Add(-checkInterval)
-	if backwardLoading := config.getDurationSec("INITIAL_BACKWARD_LOADING"); backwardLoading != 0 {
+	if backwardLoading := config.GetDurationSec("INITIAL_BACKWARD_LOADING"); backwardLoading != 0 {
 		startTime = startTime.Add(-backwardLoading)
 	}
 

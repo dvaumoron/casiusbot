@@ -16,7 +16,7 @@
  *
  */
 
-package main
+package common
 
 import (
 	"errors"
@@ -35,7 +35,7 @@ type Config struct {
 	data     map[string]any
 }
 
-func readConfig() (Config, error) {
+func ReadConfig() (Config, error) {
 	confPath := "casiusbot.yaml"
 	if len(os.Args) > 1 {
 		confPath = os.Args[1]
@@ -63,7 +63,7 @@ func (c Config) updatePath(filePath string) string {
 }
 
 func (c Config) initLog() {
-	logPath := c.getString("LOG_PATH")
+	logPath := c.GetString("LOG_PATH")
 	if logPath == "" {
 		logPath = "casiusbot.log"
 	}
@@ -75,25 +75,25 @@ func (c Config) initLog() {
 	}, os.Stderr))
 }
 
-func (c Config) getString(valueConfName string) string {
+func (c Config) GetString(valueConfName string) string {
 	value, _ := c.data[valueConfName].(string)
 	return value
 }
 
-func (c Config) require(valueConfName string) string {
-	value := c.getString(valueConfName)
+func (c Config) Require(valueConfName string) string {
+	value := c.GetString(valueConfName)
 	if value == "" {
 		log.Fatalln("Configuration value is missing :", valueConfName)
 	}
 	return value
 }
 
-func (c Config) getPrefixConfig() (map[string]string, []string, [][2]string, []string) {
+func (c Config) GetPrefixConfig() (map[string]string, []string, [][2]string, []string) {
 	nameToPrefix := map[string]string{}
 	prefixes := []string{}
 	cmdAndNames := [][2]string{}
 	specialRoles := []string{}
-	for _, rule := range c.getSlice("PREFIX_RULES") {
+	for _, rule := range c.GetSlice("PREFIX_RULES") {
 		if casted, ok := rule.(map[string]any); ok {
 			if name, _ := casted["ROLE"].(string); name != "" {
 				prefix, _ := casted["PREFIX"].(string)
@@ -114,12 +114,12 @@ func (c Config) getPrefixConfig() (map[string]string, []string, [][2]string, []s
 	return nameToPrefix, prefixes, cmdAndNames, specialRoles
 }
 
-func (c Config) getIdSet(namesConfName string, nameToId map[string]string) (stringSet, error) {
+func (c Config) GetIdSet(namesConfName string, nameToId map[string]string) (StringSet, error) {
 	names, ok := c.data[namesConfName].([]any)
 	if !ok {
 		return nil, nil
 	}
-	idSet := stringSet{}
+	idSet := StringSet{}
 	for _, name := range names {
 		nameStr, ok := name.(string)
 		if !ok {
@@ -129,17 +129,17 @@ func (c Config) getIdSet(namesConfName string, nameToId map[string]string) (stri
 		if id == "" {
 			return nil, errors.New("Unrecognized name : " + nameStr)
 		}
-		idSet[id] = empty{}
+		idSet[id] = Empty{}
 	}
 	return idSet, nil
 }
 
-func (c Config) getSlice(valuesConfName string) []any {
+func (c Config) GetSlice(valuesConfName string) []any {
 	values, _ := c.data[valuesConfName].([]any)
 	return values
 }
 
-func (c Config) getStringSlice(valuesConfName string) []string {
+func (c Config) GetStringSlice(valuesConfName string) []string {
 	values, ok := c.data[valuesConfName].([]any)
 	if !ok {
 		return nil
@@ -155,7 +155,7 @@ func (c Config) getStringSlice(valuesConfName string) []string {
 	return casted
 }
 
-func (c Config) getDurationSec(valueConfName string) time.Duration {
+func (c Config) GetDurationSec(valueConfName string) time.Duration {
 	value := c.data[valueConfName]
 	valueSec, ok := value.(int)
 	if !ok {
@@ -164,7 +164,7 @@ func (c Config) getDurationSec(valueConfName string) time.Duration {
 	return time.Duration(valueSec) * time.Second
 }
 
-func (c Config) getDelayMins(valuesConfName string) []time.Duration {
+func (c Config) GetDelayMins(valuesConfName string) []time.Duration {
 	values, _ := c.data[valuesConfName].([]any)
 	delays := make([]time.Duration, 0, len(values))
 	for _, value := range values {
@@ -181,7 +181,7 @@ func (c Config) getDelayMins(valuesConfName string) []time.Duration {
 	return delays
 }
 
-func (c Config) getPath(pathConfName string) string {
+func (c Config) GetPath(pathConfName string) string {
 	path, _ := c.data[pathConfName].(string)
 	if path != "" {
 		path = c.updatePath(path)

@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/dvaumoron/casiusbot/common"
 )
 
 const (
@@ -32,21 +33,21 @@ const (
 	REMOVE_ALL
 )
 
-func transformNick(nickName string, roleIds []string, info GuildAndConfInfo) (string, string, uint8) {
-	cleanedNickName := cleanPrefixInNick(nickName, info.prefixes)
+func transformNick(nickName string, roleIds []string, info common.GuildAndConfInfo) (string, string, uint8) {
+	cleanedNickName := cleanPrefixInNick(nickName, info.Prefixes)
 	nickName = cleanedNickName
 	usedRoleId, hasDefault, hasPrefix, notDone := "", false, false, true
 	for _, roleId := range roleIds {
-		if _, ok := info.forbiddenRoleIds[roleId]; ok {
+		if _, ok := info.ForbiddenRoleIds[roleId]; ok {
 			// not adding prefix nor default role for user with forbidden role
 			return cleanedNickName, roleId, REMOVE_ALL
 		}
-		if roleId == info.defaultRoleId {
+		if roleId == info.DefaultRoleId {
 			hasDefault = true
 		}
-		if prefix, ok := info.roleIdToPrefix[roleId]; ok {
+		if prefix, ok := info.RoleIdToPrefix[roleId]; ok {
 			hasPrefix = true
-			_, special := info.specialRoleIds[roleId]
+			_, special := info.SpecialRoleIds[roleId]
 			if notDone || special {
 				notDone = false
 				usedRoleId = roleId
@@ -75,7 +76,7 @@ func cleanPrefixInNick(nick string, prefixes []string) string {
 	return nick
 }
 
-func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos GuildAndConfInfo, userMonitor *IdMonitor) int {
+func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos common.GuildAndConfInfo, userMonitor *common.IdMonitor) int {
 	counterError := 0
 	for _, guildMember := range guildMembers {
 		userId := guildMember.User.ID
@@ -87,28 +88,28 @@ func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos
 	return counterError
 }
 
-func applyPrefix(s *discordgo.Session, messageSender chan<- MultipartMessage, member *discordgo.Member, infos GuildAndConfInfo, forceSend bool) int {
+func applyPrefix(s *discordgo.Session, messageSender chan<- common.MultipartMessage, member *discordgo.Member, infos common.GuildAndConfInfo, forceSend bool) int {
 	counterError := 0
 	userId := member.User.ID
 	roleIds := member.Roles
-	if userId != infos.ownerId && !idInSet(roleIds, infos.ignoredRoleIds) {
-		nick := extractNick(member)
+	if userId != infos.OwnerId && !common.IdInSet(roleIds, infos.IgnoredRoleIds) {
+		nick := common.ExtractNick(member)
 		newNick, usedRoleId, actionOnRoles := transformNick(nick, roleIds, infos)
 		switch actionOnRoles {
 		case ADD_DEFAULT:
-			if err := s.GuildMemberRoleAdd(infos.guildId, userId, infos.defaultRoleId); err != nil {
+			if err := s.GuildMemberRoleAdd(infos.GuildId, userId, infos.DefaultRoleId); err != nil {
 				log.Println("Role addition failed :", err)
 				counterError++
 			}
 		case REMOVE_DEFAULT:
-			if err := s.GuildMemberRoleRemove(infos.guildId, userId, infos.defaultRoleId); err != nil {
+			if err := s.GuildMemberRoleRemove(infos.GuildId, userId, infos.DefaultRoleId); err != nil {
 				log.Println("Role removing failed :", err)
 				counterError++
 			}
 		case REMOVE_ALL:
 			for _, roleId := range roleIds {
-				if _, ok := infos.roleIdToPrefix[roleId]; ok || roleId == infos.defaultRoleId {
-					if err := s.GuildMemberRoleRemove(infos.guildId, userId, roleId); err != nil {
+				if _, ok := infos.RoleIdToPrefix[roleId]; ok || roleId == infos.DefaultRoleId {
+					if err := s.GuildMemberRoleRemove(infos.GuildId, userId, roleId); err != nil {
 						log.Println("Role removing failed (2) :", err)
 						counterError++
 					}
@@ -117,16 +118,16 @@ func applyPrefix(s *discordgo.Session, messageSender chan<- MultipartMessage, me
 		}
 		if newNick == nick {
 			if forceSend && messageSender != nil {
-				msg := strings.ReplaceAll(infos.msgs[6], "{{user}}", nick)
-				msg = strings.ReplaceAll(msg, "{{role}}", infos.roleIdToDisplayName[usedRoleId])
-				messageSender <- MultipartMessage{message: msg}
+				msg := strings.ReplaceAll(infos.Msgs[6], "{{user}}", nick)
+				msg = strings.ReplaceAll(msg, "{{role}}", infos.RoleIdToDisplayName[usedRoleId])
+				messageSender <- common.MultipartMessage{Message: msg}
 			}
 		} else {
-			if err := s.GuildMemberNickname(infos.guildId, userId, newNick); err == nil {
+			if err := s.GuildMemberNickname(infos.GuildId, userId, newNick); err == nil {
 				if messageSender != nil {
-					msg := strings.ReplaceAll(infos.msgs[5], "{{old}}", nick)
+					msg := strings.ReplaceAll(infos.Msgs[5], "{{old}}", nick)
 					msg = strings.ReplaceAll(msg, "{{new}}", newNick)
-					messageSender <- MultipartMessage{message: msg}
+					messageSender <- common.MultipartMessage{Message: msg}
 				}
 			} else {
 				log.Println("Nickname change failed (2) :", err)
@@ -137,14 +138,14 @@ func applyPrefix(s *discordgo.Session, messageSender chan<- MultipartMessage, me
 	return counterError
 }
 
-func cleanPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos GuildAndConfInfo, userMonitor *IdMonitor) int {
+func cleanPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos common.GuildAndConfInfo, userMonitor *common.IdMonitor) int {
 	counterError := 0
 	for _, member := range guildMembers {
-		if userId := member.User.ID; userId != infos.ownerId && userMonitor.StartProcessing(userId) {
-			nick := extractNick(member)
-			newNick := cleanPrefixInNick(nick, infos.prefixes)
+		if userId := member.User.ID; userId != infos.OwnerId && userMonitor.StartProcessing(userId) {
+			nick := common.ExtractNick(member)
+			newNick := cleanPrefixInNick(nick, infos.Prefixes)
 			if newNick != nick {
-				if err := s.GuildMemberNickname(infos.guildId, userId, newNick); err != nil {
+				if err := s.GuildMemberNickname(infos.GuildId, userId, newNick); err != nil {
 					log.Println("Nickname change failed :", err)
 					counterError++
 				}

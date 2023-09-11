@@ -24,18 +24,19 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/dvaumoron/casiusbot/common"
 )
 
-func buildReminderPrefix(config Config, reminderConfName string, guildId string) string {
+func buildReminderPrefix(config common.Config, reminderConfName string, guildId string) string {
 	var reminderBuilder strings.Builder
-	reminderBuilder.WriteString(config.require(reminderConfName))
+	reminderBuilder.WriteString(config.Require(reminderConfName))
 	reminderBuilder.WriteString("\nhttps://discord.com/events/")
 	reminderBuilder.WriteString(guildId)
 	reminderBuilder.WriteByte('/')
 	return reminderBuilder.String()
 }
 
-func remindEvent(session *discordgo.Session, guildId string, delays []time.Duration, messageSender chan<- MultipartMessage, reminderPrefix string, previous time.Time, ticker <-chan time.Time) {
+func remindEvent(session *discordgo.Session, guildId string, delays []time.Duration, messageSender chan<- common.MultipartMessage, reminderPrefix string, previous time.Time, ticker <-chan time.Time) {
 	for current := range ticker {
 		events, err := session.GuildScheduledEvents(guildId, false)
 		if err != nil {
@@ -49,7 +50,7 @@ func remindEvent(session *discordgo.Session, guildId string, delays []time.Durat
 				// delay  is already negative
 				reminderTime := eventStartTime.Add(delay)
 				if reminderTime.After(previous) && reminderTime.Before(current) {
-					messageSender <- MultipartMessage{message: reminderPrefix + event.ID}
+					messageSender <- common.MultipartMessage{Message: reminderPrefix + event.ID}
 					// don't test other delay
 					break
 				}

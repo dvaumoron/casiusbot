@@ -24,25 +24,26 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/dvaumoron/casiusbot/common"
 )
 
 type Translater interface {
 	Translate(msg string) string
 }
 
-func bgAddTranslationFilter(messageSender chan<- MultipartMessage, selector string, translater Translater) chan<- linkInfo {
+func bgAddTranslationFilter(messageSender chan<- common.MultipartMessage, selector string, translater Translater) chan<- linkInfo {
 	filteringChan := make(chan linkInfo)
 	go addTranslationFiltering(messageSender, initExtracter(selector), translater, filteringChan)
 	return filteringChan
 }
 
-func addTranslationFiltering(messageSender chan<- MultipartMessage, extracter func(linkInfo) string, translater Translater, filteringChan <-chan linkInfo) {
+func addTranslationFiltering(messageSender chan<- common.MultipartMessage, extracter func(linkInfo) string, translater Translater, filteringChan <-chan linkInfo) {
 	for info := range filteringChan {
-		messageSender <- MultipartMessage{
-			message:    info.link,
-			fileName:   "translated.txt",
-			fileData:   translater.Translate(extracter(info)),
-			allowMerge: true,
+		messageSender <- common.MultipartMessage{
+			Message:    info.link,
+			FileName:   "translated.txt",
+			FileData:   translater.Translate(extracter(info)),
+			AllowMerge: true,
 		}
 	}
 }
