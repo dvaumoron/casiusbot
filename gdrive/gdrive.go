@@ -61,7 +61,7 @@ func ReadDriveConfig(credentialsPath string, tokenPath string) (DriveConfig, err
 	}
 
 	driveConfig := DriveConfig{authConfig: config, token: token}
-	srv, err := driveConfig.NewService()
+	srv, err := driveConfig.newService()
 	if err != nil {
 		return DriveConfig{}, err
 	}
@@ -74,7 +74,7 @@ func ReadDriveConfig(credentialsPath string, tokenPath string) (DriveConfig, err
 	return driveConfig, nil
 }
 
-func (config DriveConfig) NewService() (*drive.Service, error) {
+func (config DriveConfig) newService() (*drive.Service, error) {
 	ctx := context.Background()
 	return drive.NewService(ctx, option.WithHTTPClient(config.authConfig.Client(ctx, config.token)))
 }
@@ -128,7 +128,7 @@ func CreateDriveSender(config DriveConfig, driveFolderId string) chan<- common.M
 
 func sendFileToDrive(config DriveConfig, driveFolderId string, dataReceiver <-chan common.MultipartMessage) {
 	for multiMessage := range dataReceiver {
-		srv, err := config.NewService()
+		srv, err := config.newService()
 		if err != nil {
 			log.Println("Unable to access Drive API :", err)
 			continue
