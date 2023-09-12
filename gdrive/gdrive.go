@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"mime"
+	"net/http"
 	"os"
 	"strings"
 
@@ -30,12 +32,14 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/drive/v3"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 )
 
 type DriveConfig struct {
-	config *oauth2.Config
-	token  *oauth2.Token
+	authConfig    *oauth2.Config
+	token         *oauth2.Token
+	importFormats map[string][]string
 }
 
 func ReadDriveConfig(credentialsPath string, tokenPath string) (DriveConfig, error) {
@@ -44,12 +48,35 @@ func ReadDriveConfig(credentialsPath string, tokenPath string) (DriveConfig, err
 		return DriveConfig{}, err
 	}
 
-	token, err := readToken(tokenPath)
+	file, err := os.Open(tokenPath)
+	if err != nil {
+		return DriveConfig{}, err
+	}
+	defer file.Close()
+
+	token := &oauth2.Token{}
+	err = json.NewDecoder(file).Decode(token)
 	if err != nil {
 		return DriveConfig{}, err
 	}
 
-	return DriveConfig{config: config, token: token}, nil
+	driveConfig := DriveConfig{authConfig: config, token: token}
+	srv, err := driveConfig.NewService()
+	if err != nil {
+		return DriveConfig{}, err
+	}
+
+	about, err := srv.About.Get().Fields("importFormats").Do()
+	if err != nil {
+		return DriveConfig{}, err
+	}
+	driveConfig.importFormats = about.ImportFormats
+	return driveConfig, nil
+}
+
+func (config DriveConfig) NewService() (*drive.Service, error) {
+	ctx := context.Background()
+	return drive.NewService(ctx, option.WithHTTPClient(config.authConfig.Client(ctx, config.token)))
 }
 
 func readOAuthConfig(credentialsPath string) (*oauth2.Config, error) {
@@ -59,18 +86,6 @@ func readOAuthConfig(credentialsPath string) (*oauth2.Config, error) {
 	}
 	// If modifying these scopes, delete your previously saved token.json.
 	return google.ConfigFromJSON(credentialsData, drive.DriveScope)
-}
-
-func readToken(tokenPath string) (*oauth2.Token, error) {
-	file, err := os.Open(tokenPath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	token := &oauth2.Token{}
-	err = json.NewDecoder(file).Decode(token)
-	return token, err
 }
 
 // Request a token from the web, then write the retrieved token in a file.
@@ -113,19 +128,31 @@ func CreateDriveSender(config DriveConfig, driveFolderId string) chan<- common.M
 
 func sendFileToDrive(config DriveConfig, driveFolderId string, dataReceiver <-chan common.MultipartMessage) {
 	for multiMessage := range dataReceiver {
-		ctx := context.Background()
-		srv, err := drive.NewService(ctx, option.WithHTTPClient(config.config.Client(ctx, config.token)))
+		srv, err := config.NewService()
 		if err != nil {
 			log.Println("Unable to access Drive API :", err)
 			continue
 		}
 
+		mimeType := ""
+		if dotIndex := strings.LastIndexByte(multiMessage.FileName, '.'); dotIndex != -1 {
+			mimeType = mime.TypeByExtension(multiMessage.FileName[dotIndex:])
+		} else {
+			mimeType = http.DetectContentType([]byte(multiMessage.FileData))
+		}
+
+		conversionMimeType := ""
+		if formats := config.importFormats[mimeType]; len(formats) != 0 {
+			conversionMimeType = formats[0]
+		}
+
 		_, err = srv.Files.Create(
 			&drive.File{
-				Parents: []string{driveFolderId},
-				Name:    multiMessage.FileName,
+				Parents:  []string{driveFolderId},
+				Name:     multiMessage.FileName,
+				MimeType: conversionMimeType,
 			},
-		).Media(strings.NewReader(multiMessage.FileData)).Do()
+		).Media(strings.NewReader(multiMessage.FileData), googleapi.ContentType(mimeType)).Do()
 		if err != nil {
 			log.Println("Unable to create file in Drive :", err)
 		}
