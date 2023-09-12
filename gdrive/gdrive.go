@@ -142,7 +142,7 @@ func sendFileToDrive(config DriveConfig, driveFolderId string, dataReceiver <-ch
 		}
 
 		conversionMimeType := ""
-		if formats := config.importFormats[mimeType]; len(formats) != 0 {
+		if formats := config.importFormats[cleanMimeType(mimeType)]; len(formats) != 0 {
 			conversionMimeType = formats[0]
 		}
 
@@ -157,4 +157,11 @@ func sendFileToDrive(config DriveConfig, driveFolderId string, dataReceiver <-ch
 			log.Println("Unable to create file in Drive :", err)
 		}
 	}
+}
+
+func cleanMimeType(mimetype string) string {
+	if index := strings.IndexByte(mimetype, ';'); index != -1 {
+		return mimetype[:index]
+	}
+	return mimetype
 }
