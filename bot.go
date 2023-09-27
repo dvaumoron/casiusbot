@@ -434,7 +434,7 @@ func main() {
 		userActivitiesCmd(s, i, saveChan, infos)
 	})
 	common.AddNonEmpty(execCmds, driveTokenName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		gdrive.DriveTokenCmd(s, i, driveConfig, infos)
+		driveConfig.DriveTokenCmd(s, i, infos)
 	})
 
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
