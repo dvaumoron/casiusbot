@@ -33,8 +33,11 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-const CmdPlaceHolder = "{{cmd}}"
-const NumErrorPlaceHolder = "{{numError}}"
+const (
+	CmdPlaceHolder      = "{{cmd}}"
+	NumErrorPlaceHolder = "{{numError}}"
+	CmdPlaceHolderSpace = CmdPlaceHolder + " "
+)
 
 type Empty = struct{}
 type StringSet = map[string]Empty
@@ -53,7 +56,7 @@ type GuildAndConfInfo struct {
 	RoleIdToPrefix             map[string]string
 	Prefixes                   []string
 	RoleIdToDisplayName        map[string]string
-	Msgs                       [10]string
+	Msgs                       [11]string
 }
 
 type IdMonitor struct {

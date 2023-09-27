@@ -50,8 +50,10 @@ func main() {
 	endedCmdMsg := config.GetString("MESSAGE_CMD_ENDED")
 	ownerMsg := config.GetString("MESSAGE_OWNER")
 	msgs := [...]string{
-		okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg, countCmdMsg, prefixMsg,
-		noChangeMsg, endedCmdMsg, strings.ReplaceAll(errPartialCmdMsg, common.CmdPlaceHolder+" ", ""), ownerMsg,
+		okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg,
+		countCmdMsg, prefixMsg, noChangeMsg, endedCmdMsg, ownerMsg,
+		strings.ReplaceAll(errGlobalCmdMsg, common.CmdPlaceHolderSpace, ""),
+		strings.ReplaceAll(errPartialCmdMsg, common.CmdPlaceHolderSpace, ""),
 	}
 
 	guildId := config.Require("GUILD_ID")
@@ -92,19 +94,10 @@ func main() {
 		}
 	}
 
-	var activityFileSender chan<- common.MultipartMessage
 	monitorActivity := activityPath != "" && saveActivityInterval > 0
 	credentialsPath := config.GetPath("DRIVE_CREDENTIALS_PATH")
 	tokenPath := config.GetPath("DRIVE_TOKEN_PATH")
 	driveFolderId := config.GetString("DRIVE_FOLDER_ID")
-	if monitorActivity && credentialsPath != "" && tokenPath != "" && driveFolderId != "" {
-		driveConfig, err := gdrive.ReadDriveConfig(credentialsPath, tokenPath)
-		if err != nil {
-			log.Fatalln("Drive config initialization failed :", err)
-		}
-
-		activityFileSender = gdrive.CreateDriveSender(driveConfig, driveFolderId)
-	}
 
 	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+5)
 	applyName, cmds := common.AppendCommand(cmds, config, "APPLY_CMD", "DESCRIPTION_APPLY_CMD")
@@ -113,7 +106,9 @@ func main() {
 	resetAllName, cmds := common.AppendCommand(cmds, config, "RESET_ALL_CMD", "DESCRIPTION_RESET_ALL_CMD")
 	countName, cmds := common.AppendCommand(cmds, config, "COUNT_CMD", "DESCRIPTION_COUNT_CMD")
 	roleCmdDesc := config.Require("DESCRIPTION_ROLE_CMD")
-	var userActivitiesName string
+
+	userActivitiesName := ""
+
 	if monitorActivity {
 		userActivitiesName, cmds = common.AppendCommand(cmds, config, "USER_ACTIVITIES_CMD", "DESCRIPTION_USER_ACTIVITIES_CMD")
 	}
@@ -186,7 +181,7 @@ func main() {
 		log.Println("Cannot retrieve the guild channel for news :", targetNewsChannelName)
 		return // to allow defer
 	}
-	if targetActivitiesChannelId == "" && userActivitiesName != "" && activityFileSender == nil {
+	if targetActivitiesChannelId == "" && userActivitiesName != "" {
 		log.Println("Cannot retrieve the guild channel for activities :", targetActivitiesChannelName)
 		return // to allow defer
 	}
@@ -329,12 +324,11 @@ func main() {
 	channelManager.AddChannel(targetCmdChannelId)
 	channelManager.AddChannel(targetNewsChannelId)
 	channelManager.AddChannel(targetReminderChannelId)
-	if activityFileSender == nil {
-		channelManager.AddChannel(targetActivitiesChannelId)
-		activityFileSender = channelManager.Get(targetActivitiesChannelId)
-	}
+	channelManager.AddChannel(targetActivitiesChannelId)
+
 	prefixChannelSender := channelManager.Get(targetPrefixChannelId)
 	cmdChannelSender := channelManager.Get(targetCmdChannelId)
+	activityFileSender := channelManager.Get(targetActivitiesChannelId)
 
 	userMonitor := common.MakeIdMonitor()
 	if counterError := applyPrefixes(session, guildMembers, infos, &userMonitor); counterError != 0 {
@@ -350,8 +344,25 @@ func main() {
 		}
 	})
 
+	driveTokenName := ""
+	var driveConfig gdrive.DriveConfig
 	var saveChan chan bool
 	if monitorActivity {
+		if credentialsPath != "" && tokenPath != "" && driveFolderId != "" {
+			driveTokenName, cmds = common.AppendCommand(cmds, config, "DRIVE_TOKEN_CMD", "DESCRIPTION_DRIVE_TOKEN_CMD")
+			followLinkMsg := strings.ReplaceAll(config.Require("MESSAGE_FOLLOW_LINK"), common.CmdPlaceHolder, driveTokenName)
+			sendErrorMsg := strings.ReplaceAll(errGlobalCmdMsg, common.CmdPlaceHolder, userActivitiesName)
+
+			driveConfig, err = gdrive.ReadDriveConfig(credentialsPath, tokenPath, followLinkMsg, sendErrorMsg)
+			if err != nil {
+				log.Println("Google Drive configuration initialization failed :", err)
+				return // to allow defer
+			}
+
+			// wrap the channel sender (used for errors or refresh token links)
+			activityFileSender = driveConfig.CreateDriveSender(driveFolderId, activityFileSender)
+		}
+
 		saveChan = make(chan bool)
 		go common.SendTick(saveChan, saveActivityInterval)
 		activitySender := bgManageActivity(session, saveChan, activityFileSender, activityPath, dateFormat, userActivitiesName, infos)
@@ -421,6 +432,9 @@ func main() {
 
 	common.AddNonEmpty(execCmds, userActivitiesName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		userActivitiesCmd(s, i, saveChan, infos)
+	})
+	common.AddNonEmpty(execCmds, driveTokenName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		gdrive.DriveTokenCmd(s, i, driveConfig, infos)
 	})
 
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {

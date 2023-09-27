@@ -21,13 +21,13 @@ package gdrive
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"mime"
 	"net/http"
 	"os"
 	"strings"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/dvaumoron/casiusbot/common"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -38,12 +38,21 @@ import (
 
 type DriveConfig struct {
 	authConfig    *oauth2.Config
+	tokenPath     string
 	token         *oauth2.Token
+	followLinkMsg string
+	sendErrorMsg  string
 	importFormats map[string][]string
 }
 
-func ReadDriveConfig(credentialsPath string, tokenPath string) (DriveConfig, error) {
-	config, err := readOAuthConfig(credentialsPath)
+func ReadDriveConfig(credentialsPath string, tokenPath string, followLinkMsg string, sendErrorMsg string) (DriveConfig, error) {
+	credentialsData, err := os.ReadFile(credentialsPath)
+	if err != nil {
+		return DriveConfig{}, err
+	}
+	// If modifying these scopes, delete your previously saved token.json.
+	config, err := google.ConfigFromJSON(credentialsData, drive.DriveScope)
+
 	if err != nil {
 		return DriveConfig{}, err
 	}
@@ -60,7 +69,9 @@ func ReadDriveConfig(credentialsPath string, tokenPath string) (DriveConfig, err
 		return DriveConfig{}, err
 	}
 
-	driveConfig := DriveConfig{authConfig: config, token: token}
+	driveConfig := DriveConfig{
+		authConfig: config, tokenPath: tokenPath, token: token, followLinkMsg: followLinkMsg, sendErrorMsg: sendErrorMsg,
+	}
 	srv, err := driveConfig.newService()
 	if err != nil {
 		return DriveConfig{}, err
@@ -79,54 +90,13 @@ func (config DriveConfig) newService() (*drive.Service, error) {
 	return drive.NewService(ctx, option.WithHTTPClient(config.authConfig.Client(ctx, config.token)))
 }
 
-func readOAuthConfig(credentialsPath string) (*oauth2.Config, error) {
-	credentialsData, err := os.ReadFile(credentialsPath)
-	if err != nil {
-		return nil, err
-	}
-	// If modifying these scopes, delete your previously saved token.json.
-	return google.ConfigFromJSON(credentialsData, drive.DriveScope)
-}
-
-// Request a token from the web, then write the retrieved token in a file.
-func SaveTokenFromWeb(ctx context.Context, credentialsPath string, tokenPath string) {
-	config, err := readOAuthConfig(credentialsPath)
-	if err != nil {
-		log.Println("Unable to read OAuth config :", err)
-		return
-	}
-
-	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	fmt.Println("Go to the following link in your browser then type the authorization code :", authURL)
-
-	var authCode string
-	if _, err := fmt.Scan(&authCode); err != nil {
-		log.Println("Unable to read authorization code :", err)
-	}
-
-	token, err := config.Exchange(ctx, authCode)
-	if err != nil {
-		log.Println("Unable to retrieve token from web :", err)
-	}
-
-	log.Println("Saving credential file to :", tokenPath)
-	file, err := os.OpenFile(tokenPath, os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
-		log.Println("Unable to cache oauth token :", err)
-		return
-	}
-	defer file.Close()
-
-	json.NewEncoder(file).Encode(token)
-}
-
-func CreateDriveSender(config DriveConfig, driveFolderId string) chan<- common.MultipartMessage {
+func (config DriveConfig) CreateDriveSender(driveFolderId string, msgSender chan<- common.MultipartMessage) chan<- common.MultipartMessage {
 	messageChan := make(chan common.MultipartMessage)
-	go sendFileToDrive(config, driveFolderId, messageChan)
+	go config.sendFileToDrive(driveFolderId, messageChan, msgSender)
 	return messageChan
 }
 
-func sendFileToDrive(config DriveConfig, driveFolderId string, dataReceiver <-chan common.MultipartMessage) {
+func (config DriveConfig) sendFileToDrive(driveFolderId string, dataReceiver <-chan common.MultipartMessage, msgSender chan<- common.MultipartMessage) {
 	for multiMessage := range dataReceiver {
 		srv, err := config.newService()
 		if err != nil {
@@ -154,9 +124,50 @@ func sendFileToDrive(config DriveConfig, driveFolderId string, dataReceiver <-ch
 			},
 		).Media(strings.NewReader(multiMessage.FileData), googleapi.ContentType(mimeType)).Do()
 		if err != nil {
-			log.Println("Unable to create file in Drive :", err)
+			if errMsg := err.Error(); strings.Contains(errMsg, "invalid_grant") {
+				authURL := config.authConfig.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+				msgSender <- common.MultipartMessage{Message: strings.ReplaceAll(config.followLinkMsg, "{{link}}", authURL)}
+			} else {
+				log.Println("Unable to create file in Drive :", errMsg)
+				msgSender <- common.MultipartMessage{Message: config.sendErrorMsg}
+			}
 		}
 	}
+}
+
+func (config DriveConfig) DriveTokenCmd(s *discordgo.Session, i *discordgo.InteractionCreate, infos common.GuildAndConfInfo) {
+	returnMsg := infos.Msgs[0]
+	if common.IdInSet(i.Member.Roles, infos.AuthorizedRoleIds) {
+		authCode := "TODO"
+
+		if err := config.saveToken(authCode); err != nil {
+			log.Println("Unable to save Google Drive token :", err)
+			returnMsg = infos.Msgs[9]
+		}
+	} else {
+		returnMsg = infos.Msgs[1]
+	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Content: returnMsg},
+	})
+}
+
+// Write the token retrieved from browser in a file.
+func (config DriveConfig) saveToken(authCode string) error {
+	token, err := config.authConfig.Exchange(context.Background(), authCode)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.OpenFile(config.tokenPath, os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	return json.NewEncoder(file).Encode(token)
 }
 
 func cleanMimeType(mimetype string) string {

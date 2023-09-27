@@ -32,7 +32,7 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 	if common.IdInSet(i.Member.Roles, infos.ForbiddenRoleIds) {
 		returnMsg = infos.Msgs[1]
 	} else if userId := i.Member.User.ID; userId == infos.OwnerId {
-		returnMsg = infos.Msgs[9]
+		returnMsg = infos.Msgs[8]
 	} else if userMonitor.StartProcessing(userId) {
 		defer userMonitor.StopProcessing(userId)
 
@@ -40,7 +40,7 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 		if counterError := addRole(s, messageQueue, i.Member, addedRoleId, infos, true); counterError == 0 {
 			returnMsg = (<-messageQueue).Message
 		} else {
-			returnMsg = strings.ReplaceAll(infos.Msgs[8], common.NumErrorPlaceHolder, strconv.Itoa(counterError))
+			returnMsg = strings.ReplaceAll(infos.Msgs[10], common.NumErrorPlaceHolder, strconv.Itoa(counterError))
 		}
 	}
 
