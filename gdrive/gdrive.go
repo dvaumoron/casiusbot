@@ -56,24 +56,24 @@ func ReadDriveConfig(credentialsPath string, tokenPath string, followLinkMsg str
 		return DriveConfig{}, err
 	}
 
+	var token *oauth2.Token
 	file, err := os.Open(tokenPath)
-	if err != nil {
-		return DriveConfig{}, err
-	}
-	defer file.Close()
+	if err == nil {
+		defer file.Close()
 
-	token := &oauth2.Token{}
-	err = json.NewDecoder(file).Decode(token)
-	if err != nil {
-		return DriveConfig{}, err
+		token = &oauth2.Token{}
+		if err = json.NewDecoder(file).Decode(token); err != nil {
+			token = nil // ignore error and force a token generation on send to google drive
+		}
 	}
 
 	config := DriveConfig{authConfig: authConfig, tokenPath: tokenPath, token: token, followLinkMsg: followLinkMsg}
-	srv, err := config.newService()
-	if err != nil {
-		return DriveConfig{}, err
+	if token != nil {
+		srv, err := config.newService()
+		if err == nil {
+			config.initImportFormats(srv) // ignore error
+		}
 	}
-	config.initImportFormats(srv) // ignore error
 	return config, nil
 }
 
@@ -101,6 +101,11 @@ func (config *DriveConfig) CreateDriveSender(driveFolderId string, errorMsgSende
 
 func (config *DriveConfig) sendFileToDrive(driveFolderId string, dataReceiver <-chan common.MultipartMessage, errorMsgSender chan<- common.MultipartMessage) {
 	for multiMessage := range dataReceiver {
+		if config.token == nil {
+			config.sendRefreshUrl(errorMsgSender)
+			continue
+		}
+
 		srv, err := config.newService()
 		if err != nil {
 			log.Println("Unable to access Drive API :", err)
@@ -139,12 +144,16 @@ func (config *DriveConfig) sendFileToDrive(driveFolderId string, dataReceiver <-
 
 func (config *DriveConfig) manageError(errorMsgSender chan<- common.MultipartMessage, err error, logMsg string, userErrorMsg string) {
 	if errMsg := err.Error(); strings.Contains(errMsg, "invalid_grant") {
-		authURL := config.authConfig.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-		errorMsgSender <- common.MultipartMessage{Message: strings.ReplaceAll(config.followLinkMsg, "{{link}}", authURL)}
+		config.sendRefreshUrl(errorMsgSender)
 	} else {
 		log.Println(logMsg, errMsg)
 		errorMsgSender <- common.MultipartMessage{Message: userErrorMsg}
 	}
+}
+
+func (config *DriveConfig) sendRefreshUrl(errorMsgSender chan<- common.MultipartMessage) {
+	authURL := config.authConfig.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	errorMsgSender <- common.MultipartMessage{Message: strings.ReplaceAll(config.followLinkMsg, "{{link}}", authURL)}
 }
 
 func (config *DriveConfig) DriveTokenCmd(s *discordgo.Session, i *discordgo.InteractionCreate, infos common.GuildAndConfInfo) {
