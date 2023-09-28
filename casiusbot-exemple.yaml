@@ -86,6 +86,7 @@ USER_ACTIVITIES_CMD: "user-activities"
 DESCRIPTION_USER_ACTIVITIES_CMD: "Retrieve user activities data"
 DRIVE_TOKEN_CMD: "drive-token"
 DESCRIPTION_DRIVE_TOKEN_CMD: "Refresh Google Drive access token"
+PARAMETER_DESCRIPTION_DRIVE_TOKEN_CMD: "authorization code"
 
 MESSAGE_CMD_OK: "Hey there ! Congratulations, you have lauched the command"
 MESSAGE_CMD_UNAUTHORIZED: "Sorry, you can not do that, the following role to prefix linking are active :"

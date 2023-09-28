@@ -349,7 +349,10 @@ func main() {
 	var saveChan chan bool
 	if monitorActivity {
 		if credentialsPath != "" && tokenPath != "" && driveFolderId != "" {
-			stringParam := []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString, Name: "code", Required: true}}
+			stringParam := []*discordgo.ApplicationCommandOption{{
+				Type: discordgo.ApplicationCommandOptionString, Name: "code",
+				Description: config.Require("PARAMETER_DESCRIPTION_DRIVE_TOKEN_CMD"), Required: true,
+			}}
 			driveTokenName, cmds = common.AppendCommand(cmds, config, "DRIVE_TOKEN_CMD", "DESCRIPTION_DRIVE_TOKEN_CMD", stringParam)
 			followLinkMsg := strings.ReplaceAll(config.Require("MESSAGE_FOLLOW_LINK"), common.CmdPlaceHolder, driveTokenName)
 
@@ -469,8 +472,10 @@ func main() {
 	<-stop
 
 	for _, cmd := range cmds {
-		if err = session.ApplicationCommandDelete(appId, guildId, cmd.ID); err != nil {
-			log.Println("Cannot delete", cmd.Name, "command :", err)
+		if cmd != nil { // there is nil when the command creation failed
+			if err = session.ApplicationCommandDelete(appId, guildId, cmd.ID); err != nil {
+				log.Println("Cannot delete", cmd.Name, "command :", err)
+			}
 		}
 	}
 }

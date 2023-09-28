@@ -50,7 +50,7 @@ func ReadDriveConfig(credentialsPath string, tokenPath string, followLinkMsg str
 		return DriveConfig{}, err
 	}
 	// If modifying these scopes, delete your previously saved token.json.
-	config, err := google.ConfigFromJSON(credentialsData, drive.DriveScope)
+	authConfig, err := google.ConfigFromJSON(credentialsData, drive.DriveScope)
 
 	if err != nil {
 		return DriveConfig{}, err
@@ -68,23 +68,29 @@ func ReadDriveConfig(credentialsPath string, tokenPath string, followLinkMsg str
 		return DriveConfig{}, err
 	}
 
-	driveConfig := DriveConfig{authConfig: config, tokenPath: tokenPath, token: token, followLinkMsg: followLinkMsg}
-	srv, err := driveConfig.newService()
+	config := DriveConfig{authConfig: authConfig, tokenPath: tokenPath, token: token, followLinkMsg: followLinkMsg}
+	srv, err := config.newService()
 	if err != nil {
 		return DriveConfig{}, err
 	}
-
-	about, err := srv.About.Get().Fields("importFormats").Do()
-	if err != nil {
-		return DriveConfig{}, err
-	}
-	driveConfig.importFormats = about.ImportFormats
-	return driveConfig, nil
+	config.initImportFormats(srv) // ignore error
+	return config, nil
 }
 
 func (config *DriveConfig) newService() (*drive.Service, error) {
 	ctx := context.Background()
 	return drive.NewService(ctx, option.WithHTTPClient(config.authConfig.Client(ctx, config.token)))
+}
+
+func (config *DriveConfig) initImportFormats(srv *drive.Service) error {
+	if len(config.importFormats) == 0 {
+		about, err := srv.About.Get().Fields("importFormats").Do()
+		if err != nil {
+			return err
+		}
+		config.importFormats = about.ImportFormats
+	}
+	return nil
 }
 
 func (config *DriveConfig) CreateDriveSender(driveFolderId string, errorMsgSender chan<- common.MultipartMessage) chan<- common.MultipartMessage {
@@ -98,6 +104,11 @@ func (config *DriveConfig) sendFileToDrive(driveFolderId string, dataReceiver <-
 		srv, err := config.newService()
 		if err != nil {
 			log.Println("Unable to access Drive API :", err)
+			continue
+		}
+
+		if err = config.initImportFormats(srv); err != nil {
+			config.manageError(errorMsgSender, err, "Unable to retrieve import formats :", multiMessage.ErrorMsg)
 			continue
 		}
 
@@ -121,14 +132,18 @@ func (config *DriveConfig) sendFileToDrive(driveFolderId string, dataReceiver <-
 			},
 		).Media(strings.NewReader(multiMessage.FileData), googleapi.ContentType(mimeType)).Do()
 		if err != nil {
-			if errMsg := err.Error(); strings.Contains(errMsg, "invalid_grant") {
-				authURL := config.authConfig.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-				errorMsgSender <- common.MultipartMessage{Message: strings.ReplaceAll(config.followLinkMsg, "{{link}}", authURL)}
-			} else {
-				log.Println("Unable to create file in Drive :", errMsg)
-				errorMsgSender <- common.MultipartMessage{Message: multiMessage.ErrorMsg}
-			}
+			config.manageError(errorMsgSender, err, "Unable to create file in Drive :", multiMessage.ErrorMsg)
 		}
+	}
+}
+
+func (config *DriveConfig) manageError(errorMsgSender chan<- common.MultipartMessage, err error, logMsg string, userErrorMsg string) {
+	if errMsg := err.Error(); strings.Contains(errMsg, "invalid_grant") {
+		authURL := config.authConfig.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+		errorMsgSender <- common.MultipartMessage{Message: strings.ReplaceAll(config.followLinkMsg, "{{link}}", authURL)}
+	} else {
+		log.Println(logMsg, errMsg)
+		errorMsgSender <- common.MultipartMessage{Message: userErrorMsg}
 	}
 }
 
