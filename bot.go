@@ -331,7 +331,10 @@ func main() {
 	activityFileSender := channelManager.Get(targetActivitiesChannelId)
 
 	userMonitor := common.MakeIdMonitor()
-	if counterError := applyPrefixes(session, guildMembers, infos, &userMonitor); counterError != 0 {
+	counterError := common.ProcessMembers(guildMembers, &userMonitor, func(guildMember *discordgo.Member) int {
+		return applyPrefix(session, nil, guildMember, infos, false)
+	})
+	if counterError != 0 {
 		log.Println("Trying to apply prefixes at startup generate errors :", counterError)
 	}
 	// for GC cleaning
@@ -396,21 +399,21 @@ func main() {
 
 	execCmds := map[string]func(*discordgo.Session, *discordgo.InteractionCreate){}
 	common.AddNonEmpty(execCmds, applyName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		common.MembersCmd(s, i, cmdChannelSender, applyName, infos, func(guildMembers []*discordgo.Member) int {
-			return applyPrefixes(s, guildMembers, infos, &userMonitor)
+		common.MembersCmd(s, i, cmdChannelSender, applyName, infos, &userMonitor, func(guildMember *discordgo.Member) int {
+			return applyPrefix(s, nil, guildMember, infos, false)
 		})
 	})
 	common.AddNonEmpty(execCmds, cleanName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		common.MembersCmd(s, i, cmdChannelSender, cleanName, infos, func(guildMembers []*discordgo.Member) int {
-			return cleanPrefixes(s, guildMembers, infos, &userMonitor)
+		common.MembersCmd(s, i, cmdChannelSender, cleanName, infos, &userMonitor, func(guildMember *discordgo.Member) int {
+			return cleanPrefix(s, guildMember, infos)
 		})
 	})
 	common.AddNonEmpty(execCmds, resetName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		addRoleCmd(s, i, defaultRoleId, infos, &userMonitor)
 	})
 	common.AddNonEmpty(execCmds, resetAllName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		common.MembersCmd(s, i, cmdChannelSender, resetAllName, infos, func(guildMembers []*discordgo.Member) int {
-			return resetRoleAll(s, guildMembers, infos, &userMonitor)
+		common.MembersCmd(s, i, cmdChannelSender, resetAllName, infos, &userMonitor, func(guildMember *discordgo.Member) int {
+			return resetRole(s, guildMember, infos)
 		})
 	})
 

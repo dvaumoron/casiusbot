@@ -124,16 +124,11 @@ func extractRoleCountWithFilter(guildMembers []*discordgo.Member, filterRoleIds 
 	return roleIdToCount
 }
 
-func resetRoleAll(s *discordgo.Session, guildMembers []*discordgo.Member, infos common.GuildAndConfInfo, userMonitor *common.IdMonitor) int {
+func resetRole(s *discordgo.Session, guildMember *discordgo.Member, infos common.GuildAndConfInfo) int {
 	counterError := 0
-	for _, member := range guildMembers {
-		userId := member.User.ID
-		if userId != infos.OwnerId && !common.IdInSet(member.Roles, infos.ForbiddenAndignoredRoleIds) {
-			if userMonitor.StartProcessing(userId) {
-				counterError += addRole(s, nil, member, infos.DefaultRoleId, infos, false)
-				userMonitor.StopProcessing(userId)
-			}
-		}
+	userId := guildMember.User.ID
+	if userId != infos.OwnerId && !common.IdInSet(guildMember.Roles, infos.ForbiddenAndignoredRoleIds) {
+		counterError += addRole(s, nil, guildMember, infos.DefaultRoleId, infos, false)
 	}
 	return counterError
 }

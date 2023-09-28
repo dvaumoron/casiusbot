@@ -76,18 +76,6 @@ func cleanPrefixInNick(nick string, prefixes []string) string {
 	return nick
 }
 
-func applyPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos common.GuildAndConfInfo, userMonitor *common.IdMonitor) int {
-	counterError := 0
-	for _, guildMember := range guildMembers {
-		userId := guildMember.User.ID
-		if userMonitor.StartProcessing(userId) {
-			counterError += applyPrefix(s, nil, guildMember, infos, false)
-			userMonitor.StopProcessing(userId)
-		}
-	}
-	return counterError
-}
-
 func applyPrefix(s *discordgo.Session, messageSender chan<- common.MultipartMessage, member *discordgo.Member, infos common.GuildAndConfInfo, forceSend bool) int {
 	counterError := 0
 	userId := member.User.ID
@@ -138,19 +126,16 @@ func applyPrefix(s *discordgo.Session, messageSender chan<- common.MultipartMess
 	return counterError
 }
 
-func cleanPrefixes(s *discordgo.Session, guildMembers []*discordgo.Member, infos common.GuildAndConfInfo, userMonitor *common.IdMonitor) int {
+func cleanPrefix(s *discordgo.Session, guildMember *discordgo.Member, infos common.GuildAndConfInfo) int {
 	counterError := 0
-	for _, member := range guildMembers {
-		if userId := member.User.ID; userId != infos.OwnerId && userMonitor.StartProcessing(userId) {
-			nick := common.ExtractNick(member)
-			newNick := cleanPrefixInNick(nick, infos.Prefixes)
-			if newNick != nick {
-				if err := s.GuildMemberNickname(infos.GuildId, userId, newNick); err != nil {
-					log.Println("Nickname change failed :", err)
-					counterError++
-				}
+	if userId := guildMember.User.ID; userId != infos.OwnerId {
+		nick := common.ExtractNick(guildMember)
+		newNick := cleanPrefixInNick(nick, infos.Prefixes)
+		if newNick != nick {
+			if err := s.GuildMemberNickname(infos.GuildId, userId, newNick); err != nil {
+				log.Println("Nickname change failed :", err)
+				counterError++
 			}
-			userMonitor.StopProcessing(userId)
 		}
 	}
 	return counterError

@@ -181,12 +181,11 @@ func AddNonEmpty[T any](m map[string]T, name string, value T) {
 	}
 }
 
-func MembersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- MultipartMessage, cmdName string, infos GuildAndConfInfo, cmdEffect func([]*discordgo.Member) int) {
-	returnMsg := infos.Msgs[0]
+func MembersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- MultipartMessage, cmdName string, infos GuildAndConfInfo, userMonitor *IdMonitor, cmdEffect func(*discordgo.Member) int) {
+	returnMsg := infos.Msgs[1]
 	if IdInSet(i.Member.Roles, infos.AuthorizedRoleIds) {
-		go processMembers(s, messageSender, cmdName, infos, cmdEffect)
-	} else {
-		returnMsg = infos.Msgs[1]
+		go processMembers(s, messageSender, cmdName, infos, userMonitor, cmdEffect)
+		returnMsg = infos.Msgs[0]
 	}
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -195,18 +194,28 @@ func MembersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSen
 	})
 }
 
-func processMembers(s *discordgo.Session, messageSender chan<- MultipartMessage, cmdName string, infos GuildAndConfInfo, cmdEffect func([]*discordgo.Member) int) {
-	msg := infos.Msgs[2]
+func processMembers(s *discordgo.Session, messageSender chan<- MultipartMessage, cmdName string, infos GuildAndConfInfo, userMonitor *IdMonitor, cmdEffect func(*discordgo.Member) int) {
+	msg := infos.Msgs[7]
 	if guildMembers, err := s.GuildMembers(infos.GuildId, "", 1000); err == nil {
-		if counterError := cmdEffect(guildMembers); counterError == 0 {
-			msg = infos.Msgs[7]
-		} else {
+		if counterError := ProcessMembers(guildMembers, userMonitor, cmdEffect); counterError != 0 {
 			msg = strings.ReplaceAll(infos.Msgs[3], NumErrorPlaceHolder, strconv.Itoa(counterError))
 		}
 	} else {
 		log.Println("Cannot retrieve guild members (3) :", err)
+		msg = infos.Msgs[2]
 	}
 	messageSender <- MultipartMessage{Message: strings.ReplaceAll(msg, CmdPlaceHolder, cmdName)}
+}
+
+func ProcessMembers(guildMembers []*discordgo.Member, userMonitor *IdMonitor, cmdEffect func(*discordgo.Member) int) int {
+	counterError := 0
+	for _, member := range guildMembers {
+		if userId := member.User.ID; userMonitor.StartProcessing(userId) {
+			counterError += cmdEffect(member)
+			userMonitor.StopProcessing(userId)
+		}
+	}
+	return counterError
 }
 
 func ExtractNick(member *discordgo.Member) string {
