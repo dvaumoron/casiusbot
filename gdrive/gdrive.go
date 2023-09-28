@@ -156,24 +156,15 @@ func (config *DriveConfig) sendRefreshUrl(errorMsgSender chan<- common.Multipart
 	errorMsgSender <- common.MultipartMessage{Message: strings.ReplaceAll(config.followLinkMsg, "{{link}}", authURL)}
 }
 
-func (config *DriveConfig) DriveTokenCmd(s *discordgo.Session, i *discordgo.InteractionCreate, infos common.GuildAndConfInfo) {
-	returnMsg := infos.Msgs[9]
-	if common.IdInSet(i.Member.Roles, infos.AuthorizedRoleIds) {
-		if options := i.ApplicationCommandData().Options; len(options) != 0 {
-			if err := config.saveToken(options[0].StringValue()); err == nil {
-				returnMsg = infos.Msgs[0]
-			} else {
-				log.Println("Unable to save Google Drive token :", err)
-			}
+func (config *DriveConfig) DriveTokenCmdEffect(i *discordgo.InteractionCreate, infos common.GuildAndConfInfo) string {
+	if options := i.ApplicationCommandData().Options; len(options) != 0 {
+		if err := config.saveToken(options[0].StringValue()); err == nil {
+			return infos.Msgs[0]
+		} else {
+			log.Println("Unable to save Google Drive token :", err)
 		}
-	} else {
-		returnMsg = infos.Msgs[1]
 	}
-
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{Content: returnMsg},
-	})
+	return infos.Msgs[9]
 }
 
 // Write the token retrieved from browser in a file.

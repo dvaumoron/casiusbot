@@ -152,17 +152,3 @@ func loadMemberIdAndNames(session *discordgo.Session, infos common.GuildAndConfI
 	}
 	return names
 }
-
-func userActivitiesCmd(s *discordgo.Session, i *discordgo.InteractionCreate, saveTickSender chan<- bool, infos common.GuildAndConfInfo) {
-	returnMsg := infos.Msgs[0]
-	if common.IdInSet(i.Member.Roles, infos.AuthorizedRoleIds) {
-		saveTickSender <- true
-	} else {
-		returnMsg = infos.Msgs[1]
-	}
-
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{Content: returnMsg},
-	})
-}

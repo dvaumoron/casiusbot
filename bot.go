@@ -437,10 +437,15 @@ func main() {
 	cmdAndRoleIds = nil
 
 	common.AddNonEmpty(execCmds, userActivitiesName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		userActivitiesCmd(s, i, saveChan, infos)
+		common.AuthorizedCmd(s, i, infos, func() string {
+			saveChan <- true
+			return okCmdMsg
+		})
 	})
 	common.AddNonEmpty(execCmds, driveTokenName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		driveConfig.DriveTokenCmd(s, i, infos)
+		common.AuthorizedCmd(s, i, infos, func() string {
+			return driveConfig.DriveTokenCmdEffect(i, infos)
+		})
 	})
 
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {

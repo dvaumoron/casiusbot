@@ -226,6 +226,18 @@ func ExtractNick(member *discordgo.Member) string {
 	return nickname
 }
 
+func AuthorizedCmd(s *discordgo.Session, i *discordgo.InteractionCreate, infos GuildAndConfInfo, cmdEffect func() string) {
+	returnMsg := infos.Msgs[1]
+	if IdInSet(i.Member.Roles, infos.AuthorizedRoleIds) {
+		returnMsg = cmdEffect()
+	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{Content: returnMsg},
+	})
+}
+
 func createMessageSender(session *discordgo.Session, channelId string) chan<- MultipartMessage {
 	messageChan := make(chan MultipartMessage)
 	go sendMultiMessage(session, channelId, messageChan)
