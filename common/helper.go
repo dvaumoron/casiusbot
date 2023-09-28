@@ -181,16 +181,22 @@ func AddNonEmpty[T any](m map[string]T, name string, value T) {
 	}
 }
 
-func MembersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- MultipartMessage, cmdName string, infos GuildAndConfInfo, userMonitor *IdMonitor, cmdEffect func(*discordgo.Member) int) {
+func AuthorizedCmd(s *discordgo.Session, i *discordgo.InteractionCreate, infos GuildAndConfInfo, cmdEffect func() string) {
 	returnMsg := infos.Msgs[1]
 	if IdInSet(i.Member.Roles, infos.AuthorizedRoleIds) {
-		go processMembers(s, messageSender, cmdName, infos, userMonitor, cmdEffect)
-		returnMsg = infos.Msgs[0]
+		returnMsg = cmdEffect()
 	}
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{Content: returnMsg},
+	})
+}
+
+func MembersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- MultipartMessage, cmdName string, infos GuildAndConfInfo, userMonitor *IdMonitor, cmdEffect func(*discordgo.Member) int) {
+	AuthorizedCmd(s, i, infos, func() string {
+		go processMembers(s, messageSender, cmdName, infos, userMonitor, cmdEffect)
+		return infos.Msgs[0]
 	})
 }
 
@@ -224,18 +230,6 @@ func ExtractNick(member *discordgo.Member) string {
 		nickname = member.User.Username
 	}
 	return nickname
-}
-
-func AuthorizedCmd(s *discordgo.Session, i *discordgo.InteractionCreate, infos GuildAndConfInfo, cmdEffect func() string) {
-	returnMsg := infos.Msgs[1]
-	if IdInSet(i.Member.Roles, infos.AuthorizedRoleIds) {
-		returnMsg = cmdEffect()
-	}
-
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{Content: returnMsg},
-	})
 }
 
 func createMessageSender(session *discordgo.Session, channelId string) chan<- MultipartMessage {
