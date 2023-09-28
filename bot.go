@@ -359,7 +359,7 @@ func main() {
 			driveTokenName, cmds = common.AppendCommand(cmds, config, "DRIVE_TOKEN_CMD", "DESCRIPTION_DRIVE_TOKEN_CMD", stringParam)
 			followLinkMsg := strings.ReplaceAll(config.Require("MESSAGE_FOLLOW_LINK"), common.CmdPlaceHolder, driveTokenName)
 
-			driveConfig, err = gdrive.ReadDriveConfig(credentialsPath, tokenPath, followLinkMsg)
+			driveConfig, err = gdrive.ReadConfig(credentialsPath, tokenPath, followLinkMsg)
 			if err != nil {
 				log.Println("Google Drive configuration initialization failed :", err)
 				return // to allow defer

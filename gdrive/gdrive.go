@@ -44,7 +44,7 @@ type DriveConfig struct {
 	importFormats map[string][]string
 }
 
-func ReadDriveConfig(credentialsPath string, tokenPath string, followLinkMsg string) (DriveConfig, error) {
+func ReadConfig(credentialsPath string, tokenPath string, followLinkMsg string) (DriveConfig, error) {
 	credentialsData, err := os.ReadFile(credentialsPath)
 	if err != nil {
 		return DriveConfig{}, err
