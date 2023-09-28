@@ -53,8 +53,7 @@ func main() {
 	msgs := [...]string{
 		okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg,
 		countCmdMsg, prefixMsg, noChangeMsg, endedCmdMsg, ownerMsg,
-		strings.ReplaceAll(errGlobalCmdMsg, common.CmdPlaceHolderSpace, ""),
-		strings.ReplaceAll(errPartialCmdMsg, common.CmdPlaceHolderSpace, ""),
+		common.CleanMessage(errGlobalCmdMsg), common.CleanMessage(errPartialCmdMsg),
 	}
 
 	guildId := config.Require("GUILD_ID")

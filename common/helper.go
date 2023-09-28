@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -36,7 +37,6 @@ import (
 const (
 	CmdPlaceHolder      = "{{cmd}}"
 	NumErrorPlaceHolder = "{{numError}}"
-	CmdPlaceHolderSpace = CmdPlaceHolder + " "
 )
 
 type Empty = struct{}
@@ -120,6 +120,28 @@ func (m ChannelSenderManager) AddChannel(channelId string) {
 
 func (m ChannelSenderManager) Get(channelId string) chan<- MultipartMessage {
 	return m.channels[channelId]
+}
+
+// Remove "{{cmd}}" place holder and replace multiple space in row by one space
+func CleanMessage(msg string) string {
+	index := 0
+	lastNonSpace := -1
+	previousSpace := true
+	newMsg := make([]rune, 0, len(msg))
+	for _, char := range strings.ReplaceAll(msg, CmdPlaceHolder, "") {
+		currentSpace := unicode.IsSpace(char)
+		if currentSpace {
+			if previousSpace {
+				continue
+			}
+		} else {
+			lastNonSpace = index
+		}
+		newMsg = append(newMsg, char)
+		previousSpace = currentSpace
+		index++
+	}
+	return string(newMsg[:lastNonSpace+1])
 }
 
 func InitIdSet(trimmedNames []string, nameToId map[string]string) (StringSet, error) {

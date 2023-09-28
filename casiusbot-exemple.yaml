@@ -85,7 +85,7 @@ DESCRIPTION_RESET_ALL_CMD: "Reset role for all users"
 USER_ACTIVITIES_CMD: "user-activities"
 DESCRIPTION_USER_ACTIVITIES_CMD: "Retrieve user activities data"
 DRIVE_TOKEN_CMD: "drive-token"
-DESCRIPTION_DRIVE_TOKEN_CMD: "Refresh Google drive access token"
+DESCRIPTION_DRIVE_TOKEN_CMD: "Refresh Google Drive access token"
 
 MESSAGE_CMD_OK: "Hey there ! Congratulations, you have lauched the command"
 MESSAGE_CMD_UNAUTHORIZED: "Sorry, you can not do that, the following role to prefix linking are active :"
