@@ -143,11 +143,11 @@ func IdInSet(ids []string, idSet StringSet) bool {
 	return false
 }
 
-func AppendCommand(cmds []*discordgo.ApplicationCommand, config Config, cmdConfName string, cmdDescConfName string) (string, []*discordgo.ApplicationCommand) {
+func AppendCommand(cmds []*discordgo.ApplicationCommand, config Config, cmdConfName string, cmdDescConfName string, options []*discordgo.ApplicationCommandOption) (string, []*discordgo.ApplicationCommand) {
 	cmdName := config.GetString(cmdConfName)
 	if cmdName != "" {
 		cmds = append(cmds, &discordgo.ApplicationCommand{
-			Name: cmdName, Description: config.Require(cmdDescConfName),
+			Name: cmdName, Description: config.Require(cmdDescConfName), Options: options,
 		})
 	}
 	return cmdName, cmds
@@ -212,7 +212,11 @@ func sendMultiMessage(session *discordgo.Session, channelId string, messageRecei
 				}
 			}
 		} else {
-			if multiMessage.FileName != "" && multiMessage.FileData != "" {
+			if multiMessage.FileName == "" || multiMessage.FileData == "" {
+				if _, err := session.ChannelMessageSend(channelId, message); err != nil {
+					log.Println("Message sending failed :", err)
+				}
+			} else {
 				if multiMessage.AllowMerge && len(multiMessage.Message)+len(multiMessage.FileData) < 2000 {
 					var builder strings.Builder
 					builder.WriteString(message)
@@ -226,10 +230,6 @@ func sendMultiMessage(session *discordgo.Session, channelId string, messageRecei
 					if _, err := session.ChannelFileSendWithMessage(channelId, message, multiMessage.FileName, dataReader); err != nil {
 						log.Println("Message with file sending failed :", err)
 					}
-				}
-			} else {
-				if _, err := session.ChannelMessageSend(channelId, message); err != nil {
-					log.Println("Message sending failed :", err)
 				}
 			}
 		}

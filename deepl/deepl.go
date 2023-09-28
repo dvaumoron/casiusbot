@@ -16,7 +16,7 @@
  *
  */
 
-package main
+package deepl
 
 import (
 	"encoding/json"
@@ -42,7 +42,7 @@ type DeepLClient struct {
 	messageLimit string
 }
 
-func makeDeepLClient(baseUrl string, token string, sourceLang string, targetLang string, messageError string, messageLimit string) DeepLClient {
+func MakeClient(baseUrl string, token string, sourceLang string, targetLang string, messageError string, messageLimit string) DeepLClient {
 	usageUrl, err := url.JoinPath(baseUrl, "v2/usage")
 	if err != nil {
 		log.Fatalln("Failed to create translater :", err)

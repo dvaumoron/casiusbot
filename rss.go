@@ -42,7 +42,7 @@ func bgReadMultipleRSS(messageSender chan<- common.MultipartMessage, feeds []any
 			if feedURL, _ := casted["URL"].(string); feedURL != "" {
 				selector, _ := casted["TRANSLATE_SELECTOR"].(string)
 				checkRule, _ := casted["CHECKER"].(string)
-				filteringSender := initLinkSender(messageSender, defaultLinkSender, translater, selector)
+				filteringSender := initLinkSender(messageSender, selector, translater, defaultLinkSender)
 				checkLink := common.InitChecker(checkRule)
 				go startReadRSS(filteringSender, feedURL, checkLink, startTime, tickers[index])
 			}
@@ -50,11 +50,13 @@ func bgReadMultipleRSS(messageSender chan<- common.MultipartMessage, feeds []any
 	}
 }
 
-func initLinkSender(messageSender chan<- common.MultipartMessage, defaultLinkSender chan<- linkInfo, translater Translater, selector string) chan<- linkInfo {
-	if translater != nil && selector != "" {
-		return bgAddTranslationFilter(messageSender, selector, translater)
+func initLinkSender(messageSender chan<- common.MultipartMessage, selector string, translater Translater, defaultLinkSender chan<- linkInfo) chan<- linkInfo {
+	if selector == "" || translater == nil {
+		return defaultLinkSender
+
 	}
-	return defaultLinkSender
+	return bgAddTranslationFilter(messageSender, selector, translater)
+
 }
 
 func createLinkSender(messageSender chan<- common.MultipartMessage) chan<- linkInfo {

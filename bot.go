@@ -28,6 +28,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/dvaumoron/casiusbot/common"
+	"github.com/dvaumoron/casiusbot/deepl"
 	"github.com/dvaumoron/casiusbot/gdrive"
 )
 
@@ -90,7 +91,7 @@ func main() {
 			targetLang := config.Require("TRANSLATE_TARGET_LANG")
 			messageError := config.Require("MESSAGE_TRANSLATE_ERROR")
 			messageLimit := config.Require("MESSAGE_TRANSLATE_LIMIT")
-			translater = makeDeepLClient(deepLUrl, deepLToken, sourceLang, targetLang, messageError, messageLimit)
+			translater = deepl.MakeClient(deepLUrl, deepLToken, sourceLang, targetLang, messageError, messageLimit)
 		}
 	}
 
@@ -100,17 +101,17 @@ func main() {
 	driveFolderId := config.GetString("DRIVE_FOLDER_ID")
 
 	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+5)
-	applyName, cmds := common.AppendCommand(cmds, config, "APPLY_CMD", "DESCRIPTION_APPLY_CMD")
-	cleanName, cmds := common.AppendCommand(cmds, config, "CLEAN_CMD", "DESCRIPTION_CLEAN_CMD")
-	resetName, cmds := common.AppendCommand(cmds, config, "RESET_CMD", "DESCRIPTION_RESET_CMD")
-	resetAllName, cmds := common.AppendCommand(cmds, config, "RESET_ALL_CMD", "DESCRIPTION_RESET_ALL_CMD")
-	countName, cmds := common.AppendCommand(cmds, config, "COUNT_CMD", "DESCRIPTION_COUNT_CMD")
+	applyName, cmds := common.AppendCommand(cmds, config, "APPLY_CMD", "DESCRIPTION_APPLY_CMD", nil)
+	cleanName, cmds := common.AppendCommand(cmds, config, "CLEAN_CMD", "DESCRIPTION_CLEAN_CMD", nil)
+	resetName, cmds := common.AppendCommand(cmds, config, "RESET_CMD", "DESCRIPTION_RESET_CMD", nil)
+	resetAllName, cmds := common.AppendCommand(cmds, config, "RESET_ALL_CMD", "DESCRIPTION_RESET_ALL_CMD", nil)
+	countName, cmds := common.AppendCommand(cmds, config, "COUNT_CMD", "DESCRIPTION_COUNT_CMD", nil)
 	roleCmdDesc := config.Require("DESCRIPTION_ROLE_CMD")
 
 	userActivitiesName := ""
 
 	if monitorActivity {
-		userActivitiesName, cmds = common.AppendCommand(cmds, config, "USER_ACTIVITIES_CMD", "DESCRIPTION_USER_ACTIVITIES_CMD")
+		userActivitiesName, cmds = common.AppendCommand(cmds, config, "USER_ACTIVITIES_CMD", "DESCRIPTION_USER_ACTIVITIES_CMD", nil)
 	}
 
 	session, err := discordgo.New("Bot " + config.Require("BOT_TOKEN"))
@@ -349,11 +350,11 @@ func main() {
 	var saveChan chan bool
 	if monitorActivity {
 		if credentialsPath != "" && tokenPath != "" && driveFolderId != "" {
-			driveTokenName, cmds = common.AppendCommand(cmds, config, "DRIVE_TOKEN_CMD", "DESCRIPTION_DRIVE_TOKEN_CMD")
+			stringParam := []*discordgo.ApplicationCommandOption{{Type: discordgo.ApplicationCommandOptionString, Name: "code", Required: true}}
+			driveTokenName, cmds = common.AppendCommand(cmds, config, "DRIVE_TOKEN_CMD", "DESCRIPTION_DRIVE_TOKEN_CMD", stringParam)
 			followLinkMsg := strings.ReplaceAll(config.Require("MESSAGE_FOLLOW_LINK"), common.CmdPlaceHolder, driveTokenName)
-			sendErrorMsg := strings.ReplaceAll(errGlobalCmdMsg, common.CmdPlaceHolder, userActivitiesName)
 
-			driveConfig, err = gdrive.ReadDriveConfig(credentialsPath, tokenPath, followLinkMsg, sendErrorMsg)
+			driveConfig, err = gdrive.ReadDriveConfig(credentialsPath, tokenPath, followLinkMsg)
 			if err != nil {
 				log.Println("Google Drive configuration initialization failed :", err)
 				return // to allow defer

@@ -41,11 +41,10 @@ type DriveConfig struct {
 	tokenPath     string
 	token         *oauth2.Token
 	followLinkMsg string
-	sendErrorMsg  string
 	importFormats map[string][]string
 }
 
-func ReadDriveConfig(credentialsPath string, tokenPath string, followLinkMsg string, sendErrorMsg string) (DriveConfig, error) {
+func ReadDriveConfig(credentialsPath string, tokenPath string, followLinkMsg string) (DriveConfig, error) {
 	credentialsData, err := os.ReadFile(credentialsPath)
 	if err != nil {
 		return DriveConfig{}, err
@@ -69,9 +68,7 @@ func ReadDriveConfig(credentialsPath string, tokenPath string, followLinkMsg str
 		return DriveConfig{}, err
 	}
 
-	driveConfig := DriveConfig{
-		authConfig: config, tokenPath: tokenPath, token: token, followLinkMsg: followLinkMsg, sendErrorMsg: sendErrorMsg,
-	}
+	driveConfig := DriveConfig{authConfig: config, tokenPath: tokenPath, token: token, followLinkMsg: followLinkMsg}
 	srv, err := driveConfig.newService()
 	if err != nil {
 		return DriveConfig{}, err
@@ -85,18 +82,18 @@ func ReadDriveConfig(credentialsPath string, tokenPath string, followLinkMsg str
 	return driveConfig, nil
 }
 
-func (config DriveConfig) newService() (*drive.Service, error) {
+func (config *DriveConfig) newService() (*drive.Service, error) {
 	ctx := context.Background()
 	return drive.NewService(ctx, option.WithHTTPClient(config.authConfig.Client(ctx, config.token)))
 }
 
-func (config DriveConfig) CreateDriveSender(driveFolderId string, msgSender chan<- common.MultipartMessage) chan<- common.MultipartMessage {
+func (config *DriveConfig) CreateDriveSender(driveFolderId string, errorMsgSender chan<- common.MultipartMessage) chan<- common.MultipartMessage {
 	messageChan := make(chan common.MultipartMessage)
-	go config.sendFileToDrive(driveFolderId, messageChan, msgSender)
+	go config.sendFileToDrive(driveFolderId, messageChan, errorMsgSender)
 	return messageChan
 }
 
-func (config DriveConfig) sendFileToDrive(driveFolderId string, dataReceiver <-chan common.MultipartMessage, msgSender chan<- common.MultipartMessage) {
+func (config *DriveConfig) sendFileToDrive(driveFolderId string, dataReceiver <-chan common.MultipartMessage, errorMsgSender chan<- common.MultipartMessage) {
 	for multiMessage := range dataReceiver {
 		srv, err := config.newService()
 		if err != nil {
@@ -126,23 +123,24 @@ func (config DriveConfig) sendFileToDrive(driveFolderId string, dataReceiver <-c
 		if err != nil {
 			if errMsg := err.Error(); strings.Contains(errMsg, "invalid_grant") {
 				authURL := config.authConfig.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-				msgSender <- common.MultipartMessage{Message: strings.ReplaceAll(config.followLinkMsg, "{{link}}", authURL)}
+				errorMsgSender <- common.MultipartMessage{Message: strings.ReplaceAll(config.followLinkMsg, "{{link}}", authURL)}
 			} else {
 				log.Println("Unable to create file in Drive :", errMsg)
-				msgSender <- common.MultipartMessage{Message: config.sendErrorMsg}
+				errorMsgSender <- common.MultipartMessage{Message: multiMessage.ErrorMsg}
 			}
 		}
 	}
 }
 
-func (config DriveConfig) DriveTokenCmd(s *discordgo.Session, i *discordgo.InteractionCreate, infos common.GuildAndConfInfo) {
-	returnMsg := infos.Msgs[0]
+func (config *DriveConfig) DriveTokenCmd(s *discordgo.Session, i *discordgo.InteractionCreate, infos common.GuildAndConfInfo) {
+	returnMsg := infos.Msgs[9]
 	if common.IdInSet(i.Member.Roles, infos.AuthorizedRoleIds) {
-		authCode := "TODO"
-
-		if err := config.saveToken(authCode); err != nil {
-			log.Println("Unable to save Google Drive token :", err)
-			returnMsg = infos.Msgs[9]
+		if options := i.ApplicationCommandData().Options; len(options) != 0 {
+			if err := config.saveToken(options[0].StringValue()); err == nil {
+				returnMsg = infos.Msgs[0]
+			} else {
+				log.Println("Unable to save Google Drive token :", err)
+			}
 		}
 	} else {
 		returnMsg = infos.Msgs[1]
@@ -155,11 +153,12 @@ func (config DriveConfig) DriveTokenCmd(s *discordgo.Session, i *discordgo.Inter
 }
 
 // Write the token retrieved from browser in a file.
-func (config DriveConfig) saveToken(authCode string) error {
+func (config *DriveConfig) saveToken(authCode string) error {
 	token, err := config.authConfig.Exchange(context.Background(), authCode)
 	if err != nil {
 		return err
 	}
+	config.token = token
 
 	file, err := os.OpenFile(config.tokenPath, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
