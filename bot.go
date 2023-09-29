@@ -295,7 +295,7 @@ func main() {
 
 	userMonitor := common.MakeIdMonitor()
 	counterError := common.ProcessMembers(guildMembers, &userMonitor, func(guildMember *discordgo.Member) int {
-		return applyPrefix(session, nil, guildMember, infos, false)
+		return applyPrefix(session, nil, false, infos, guildMember)
 	})
 	if counterError != 0 {
 		log.Println("Trying to apply prefixes at startup generate errors :", counterError)
@@ -306,7 +306,7 @@ func main() {
 	session.AddHandler(func(s *discordgo.Session, u *discordgo.GuildMemberUpdate) {
 		if userId := u.User.ID; userId != ownerId && userMonitor.StartProcessing(userId) {
 			defer userMonitor.StopProcessing(userId)
-			applyPrefix(s, prefixChannelSender, u.Member, infos, false)
+			applyPrefix(s, prefixChannelSender, false, infos, u.Member)
 		}
 	})
 
@@ -362,22 +362,25 @@ func main() {
 	}
 
 	execCmds := map[string]func(*discordgo.Session, *discordgo.InteractionCreate){}
+	applyMsgs := msgs.ReplaceCmdPlaceHolder(applyName)
 	common.AddNonEmpty(execCmds, applyName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		common.MembersCmd(s, i, cmdChannelSender, applyName, infos, &userMonitor, func(guildMember *discordgo.Member) int {
-			return applyPrefix(s, nil, guildMember, infos, false)
+		common.MembersCmd(s, i, cmdChannelSender, infos, applyMsgs, &userMonitor, func(guildMember *discordgo.Member) int {
+			return applyPrefix(s, nil, false, infos, guildMember)
 		})
 	})
+	cleanMsgs := msgs.ReplaceCmdPlaceHolder(cleanName)
 	common.AddNonEmpty(execCmds, cleanName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		common.MembersCmd(s, i, cmdChannelSender, cleanName, infos, &userMonitor, func(guildMember *discordgo.Member) int {
-			return cleanPrefix(s, guildMember, infos)
+		common.MembersCmd(s, i, cmdChannelSender, infos, cleanMsgs, &userMonitor, func(guildMember *discordgo.Member) int {
+			return cleanPrefix(s, infos, guildMember)
 		})
 	})
 	common.AddNonEmpty(execCmds, resetName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		addRoleCmd(s, i, defaultRoleId, infos, &userMonitor)
 	})
+	resetAllMsgs := msgs.ReplaceCmdPlaceHolder(resetAllName)
 	common.AddNonEmpty(execCmds, resetAllName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		common.MembersCmd(s, i, cmdChannelSender, resetAllName, infos, &userMonitor, func(guildMember *discordgo.Member) int {
-			return resetRole(s, guildMember, infos)
+		common.MembersCmd(s, i, cmdChannelSender, infos, resetAllMsgs, &userMonitor, func(guildMember *discordgo.Member) int {
+			return resetRole(s, infos, guildMember)
 		})
 	})
 

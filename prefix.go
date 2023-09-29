@@ -76,7 +76,7 @@ func cleanPrefixInNick(nick string, prefixes []string) string {
 	return nick
 }
 
-func applyPrefix(s *discordgo.Session, messageSender chan<- common.MultipartMessage, member *discordgo.Member, infos common.GuildAndConfInfo, forceSend bool) int {
+func applyPrefix(s *discordgo.Session, messageSender chan<- common.MultipartMessage, forceSend bool, infos common.GuildAndConfInfo, member *discordgo.Member) int {
 	counterError := 0
 	userId := member.User.ID
 	roleIds := member.Roles
@@ -126,7 +126,7 @@ func applyPrefix(s *discordgo.Session, messageSender chan<- common.MultipartMess
 	return counterError
 }
 
-func cleanPrefix(s *discordgo.Session, guildMember *discordgo.Member, infos common.GuildAndConfInfo) int {
+func cleanPrefix(s *discordgo.Session, infos common.GuildAndConfInfo, guildMember *discordgo.Member) int {
 	counterError := 0
 	if userId := guildMember.User.ID; userId != infos.OwnerId {
 		nick := common.ExtractNick(guildMember)

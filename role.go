@@ -37,7 +37,7 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 		defer userMonitor.StopProcessing(userId)
 
 		messageQueue := make(chan common.MultipartMessage, 1)
-		if counterError := addRole(s, messageQueue, i.Member, addedRoleId, infos, true); counterError == 0 {
+		if counterError := addRole(s, messageQueue, true, addedRoleId, infos, i.Member); counterError == 0 {
 			returnMsg = (<-messageQueue).Message
 		} else {
 			returnMsg = strings.ReplaceAll(infos.Msgs.ErrPartial, common.NumErrorPlaceHolder, strconv.Itoa(counterError))
@@ -50,7 +50,7 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 	})
 }
 
-func addRole(s *discordgo.Session, messageSender chan<- common.MultipartMessage, member *discordgo.Member, addedRoleId string, infos common.GuildAndConfInfo, forceSend bool) int {
+func addRole(s *discordgo.Session, messageSender chan<- common.MultipartMessage, forceSend bool, addedRoleId string, infos common.GuildAndConfInfo, member *discordgo.Member) int {
 	toAdd := true
 	counterError := 0
 	userId := member.User.ID
@@ -76,7 +76,7 @@ func addRole(s *discordgo.Session, messageSender chan<- common.MultipartMessage,
 	}
 
 	if member, err := s.GuildMember(infos.GuildId, userId); err == nil {
-		counterError += applyPrefix(s, messageSender, member, infos, forceSend)
+		counterError += applyPrefix(s, messageSender, forceSend, infos, member)
 	} else {
 		log.Println("Cannot retrieve member :", err)
 		counterError++
@@ -124,10 +124,10 @@ func extractRoleCountWithFilter(guildMembers []*discordgo.Member, filterRoleIds 
 	return roleIdToCount
 }
 
-func resetRole(s *discordgo.Session, guildMember *discordgo.Member, infos common.GuildAndConfInfo) int {
+func resetRole(s *discordgo.Session, infos common.GuildAndConfInfo, guildMember *discordgo.Member) int {
 	userId := guildMember.User.ID
 	if userId != infos.OwnerId && !common.IdInSet(guildMember.Roles, infos.ForbiddenAndignoredRoleIds) {
-		return addRole(s, nil, guildMember, infos.DefaultRoleId, infos, false)
+		return addRole(s, nil, false, infos.DefaultRoleId, infos, guildMember)
 	}
 	return 0
 }

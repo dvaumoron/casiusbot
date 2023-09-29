@@ -74,6 +74,15 @@ type Messages struct {
 	ErrPartial      string
 }
 
+func (m Messages) ReplaceCmdPlaceHolder(cmdName string) Messages {
+	if cmdName != "" {
+		m.ErrGlobalCmd = strings.ReplaceAll(m.ErrGlobalCmd, CmdPlaceHolder, cmdName)
+		m.ErrPartialCmd = strings.ReplaceAll(m.ErrPartialCmd, CmdPlaceHolder, cmdName)
+		m.EndedCmd = strings.ReplaceAll(m.EndedCmd, CmdPlaceHolder, cmdName)
+	}
+	return m
+}
+
 type IdMonitor struct {
 	processing StringSet
 	mutex      sync.RWMutex
@@ -215,24 +224,24 @@ func AuthorizedCmd(s *discordgo.Session, i *discordgo.InteractionCreate, infos G
 	})
 }
 
-func MembersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- MultipartMessage, cmdName string, infos GuildAndConfInfo, userMonitor *IdMonitor, cmdEffect func(*discordgo.Member) int) {
+func MembersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- MultipartMessage, infos GuildAndConfInfo, msgs Messages, userMonitor *IdMonitor, cmdEffect func(*discordgo.Member) int) {
 	AuthorizedCmd(s, i, infos, func() string {
-		go processMembers(s, messageSender, cmdName, infos, userMonitor, cmdEffect)
-		return infos.Msgs.Ok
+		go processMembers(s, messageSender, infos.GuildId, msgs, userMonitor, cmdEffect)
+		return msgs.Ok
 	})
 }
 
-func processMembers(s *discordgo.Session, messageSender chan<- MultipartMessage, cmdName string, infos GuildAndConfInfo, userMonitor *IdMonitor, cmdEffect func(*discordgo.Member) int) {
-	msg := infos.Msgs.EndedCmd
-	if guildMembers, err := s.GuildMembers(infos.GuildId, "", 1000); err == nil {
+func processMembers(s *discordgo.Session, messageSender chan<- MultipartMessage, guildId string, msgs Messages, userMonitor *IdMonitor, cmdEffect func(*discordgo.Member) int) {
+	msg := msgs.EndedCmd
+	if guildMembers, err := s.GuildMembers(guildId, "", 1000); err == nil {
 		if counterError := ProcessMembers(guildMembers, userMonitor, cmdEffect); counterError != 0 {
-			msg = strings.ReplaceAll(infos.Msgs.ErrPartialCmd, NumErrorPlaceHolder, strconv.Itoa(counterError))
+			msg = strings.ReplaceAll(msgs.ErrPartialCmd, NumErrorPlaceHolder, strconv.Itoa(counterError))
 		}
 	} else {
 		log.Println("Cannot retrieve guild members (3) :", err)
-		msg = infos.Msgs.ErrGlobalCmd
+		msg = msgs.ErrGlobalCmd
 	}
-	messageSender <- MultipartMessage{Message: strings.ReplaceAll(msg, CmdPlaceHolder, cmdName)}
+	messageSender <- MultipartMessage{Message: msg}
 }
 
 func ProcessMembers(guildMembers []*discordgo.Member, userMonitor *IdMonitor, cmdEffect func(*discordgo.Member) int) int {
