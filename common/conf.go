@@ -30,7 +30,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const notIntegerMsg = "Configuration %v is not an integer %v (%T)"
+const (
+	notStringMsg  = "Configuration %v contains a non string : %v (%T)"
+	notIntegerMsg = "Configuration %v contains a non integer : %v (%T)"
+)
 
 type Config struct {
 	basePath string
@@ -128,7 +131,7 @@ func (c Config) GetIdSet(namesConfName string, nameToId map[string]string) Strin
 	for _, name := range names {
 		nameStr, ok := name.(string)
 		if !ok {
-			panic("a value is not a string in " + namesConfName)
+			panic(fmt.Sprintf(notStringMsg, namesConfName, name, name))
 		}
 		id := nameToId[nameStr]
 		if id == "" {
@@ -153,7 +156,7 @@ func (c Config) GetStringSlice(valuesConfName string) []string {
 	for _, value := range values {
 		valueStr, ok := value.(string)
 		if !ok {
-			panic("a value is not a string in" + valuesConfName)
+			panic(fmt.Sprintf(notStringMsg, valuesConfName, value, value))
 		}
 		casted = append(casted, valueStr)
 	}
@@ -187,7 +190,7 @@ func (c Config) GetDelayMins(valuesConfName string) []time.Duration {
 }
 
 func (c Config) GetPath(pathConfName string) string {
-	path, _ := c.data[pathConfName].(string)
+	path := c.GetString(pathConfName)
 	if path != "" {
 		path = c.updatePath(path)
 	}

@@ -162,7 +162,7 @@ func main() {
 	if targetPrefixChannelId == "" && targetPrefixChannelName != "" {
 		panic("Cannot retrieve the guild channel for nickname update messages : " + targetPrefixChannelName)
 	}
-	if targetCmdChannelId == "" && (applyName != "" || cleanName != "") {
+	if targetCmdChannelId == "" && (applyName != "" || cleanName != "" || resetAllName != "") {
 		panic("Cannot retrieve the guild channel for background command messages : " + targetCmdChannelName)
 	}
 	if targetNewsChannelId == "" && feedActived {
@@ -314,9 +314,10 @@ func main() {
 	if monitorActivity {
 		credentialsPath := config.GetPath("DRIVE_CREDENTIALS_PATH")
 		tokenPath := config.GetPath("DRIVE_TOKEN_PATH")
-		driveFolderId := config.GetString("DRIVE_FOLDER_ID")
 
-		if credentialsPath != "" && tokenPath != "" && driveFolderId != "" {
+		if credentialsPath != "" && tokenPath != "" {
+			driveFolderId := config.Require("DRIVE_FOLDER_ID")
+
 			stringParam := []*discordgo.ApplicationCommandOption{{
 				Type: discordgo.ApplicationCommandOptionString, Name: "code",
 				Description: config.Require("PARAMETER_DESCRIPTION_DRIVE_TOKEN_CMD"), Required: true,
