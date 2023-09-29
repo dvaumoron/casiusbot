@@ -137,7 +137,7 @@ func loadActivities(activityPath string, dateFormat string) map[string]activityD
 }
 
 func loadMemberIdAndNames(session *discordgo.Session, infos common.GuildAndConfInfo) [][3]string {
-	guildMembers, err := session.GuildMembers(infos.GuildId, "", 1000)
+	guildMembers, err := session.GuildMembers(infos.GuildId, "", common.MemberCallLimit)
 	if err != nil {
 		log.Println("Cannot retrieve guild members (4) :", err)
 		return nil

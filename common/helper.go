@@ -34,6 +34,10 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+// max number of members returned by Discord API
+// (as stated in Session.GuildMembers documentation)
+const MemberCallLimit = 1000
+
 const (
 	CmdPlaceHolder      = "{{cmd}}"
 	NumErrorPlaceHolder = "{{numError}}"
@@ -232,7 +236,7 @@ func MembersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSen
 
 func processMembers(s *discordgo.Session, messageSender chan<- MultipartMessage, guildId string, msgs Messages, userMonitor *IdMonitor, cmdEffect func(*discordgo.Member) int) {
 	msg := msgs.EndedCmd
-	if guildMembers, err := s.GuildMembers(guildId, "", 1000); err == nil {
+	if guildMembers, err := s.GuildMembers(guildId, "", MemberCallLimit); err == nil {
 		if counterError := ProcessMembers(guildMembers, userMonitor, cmdEffect); counterError != 0 {
 			msg = strings.ReplaceAll(msgs.ErrPartialCmd, NumErrorPlaceHolder, strconv.Itoa(counterError))
 		}

@@ -277,7 +277,7 @@ func main() {
 		RoleIdToPrefix: roleIdToPrefix, Prefixes: prefixes, RoleIdToDisplayName: roleIdToDisplayName, Msgs: msgs,
 	}
 
-	guildMembers, err := session.GuildMembers(guildId, "", 1000)
+	guildMembers, err := session.GuildMembers(guildId, "", common.MemberCallLimit)
 	if err != nil {
 		panic(fmt.Sprint("Cannot retrieve guild members :", err))
 	}

@@ -86,7 +86,7 @@ func addRole(s *discordgo.Session, messageSender chan<- common.MultipartMessage,
 
 func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, roleCountExtracter func([]*discordgo.Member) map[string]int, infos common.GuildAndConfInfo) {
 	returnMsg := infos.Msgs.ErrGlobalCmd
-	if guildMembers, err := s.GuildMembers(i.GuildID, "", 1000); err == nil {
+	if guildMembers, err := s.GuildMembers(i.GuildID, "", common.MemberCallLimit); err == nil {
 		roleNameToCountStr := map[string]string{}
 		for roleId, count := range roleCountExtracter(guildMembers) {
 			roleNameToCountStr[infos.RoleIdToDisplayName[roleId]] = strconv.Itoa(count)
