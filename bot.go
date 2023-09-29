@@ -95,17 +95,17 @@ func main() {
 	cmdConfig := config.GetCommandConfig()
 
 	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+7)
-	applyName, cmds := common.AppendCommand(cmds, cmdConfig, "APPLY", nil)
-	cleanName, cmds := common.AppendCommand(cmds, cmdConfig, "CLEAN", nil)
-	resetName, cmds := common.AppendCommand(cmds, cmdConfig, "RESET", nil)
-	resetAllName, cmds := common.AppendCommand(cmds, cmdConfig, "RESET_ALL", nil)
-	countName, cmds := common.AppendCommand(cmds, cmdConfig, "COUNT", nil)
+	applyName, cmds := common.AppendCommand(cmds, cmdConfig["APPLY"], nil)
+	cleanName, cmds := common.AppendCommand(cmds, cmdConfig["CLEAN"], nil)
+	resetName, cmds := common.AppendCommand(cmds, cmdConfig["RESET"], nil)
+	resetAllName, cmds := common.AppendCommand(cmds, cmdConfig["RESET_ALL"], nil)
+	countName, cmds := common.AppendCommand(cmds, cmdConfig["COUNT"], nil)
 	roleCmdDesc := config.Require("DESCRIPTION_ROLE_CMD")
 
 	userActivitiesName := ""
 	monitorActivity := activityPath != "" && saveActivityInterval > 0
 	if monitorActivity {
-		userActivitiesName, cmds = common.AppendCommand(cmds, cmdConfig, "USER_ACTIVITIES", nil)
+		userActivitiesName, cmds = common.AppendCommand(cmds, cmdConfig["USER_ACTIVITIES"], nil)
 	}
 
 	session, err := discordgo.New("Bot " + config.Require("BOT_TOKEN"))
@@ -212,9 +212,9 @@ func main() {
 		if roleId == "" {
 			panic("Unrecognized role name : " + cmdAndRoleName[1])
 		}
-		cmds = append(cmds, &discordgo.ApplicationCommand{
-			Name: cmdAndRoleName[0], Description: strings.ReplaceAll(roleCmdDesc, common.RolePlaceHolder, roleIdToDisplayName[roleId]),
-		})
+		_, cmds = common.AppendCommand(cmds, [2]string{
+			cmdAndRoleName[0], strings.ReplaceAll(roleCmdDesc, common.RolePlaceHolder, roleIdToDisplayName[roleId]),
+		}, nil)
 		cmdRoleIds[roleId] = common.Empty{}
 		cmdAndRoleIds = append(cmdAndRoleIds, [2]string{cmdAndRoleName[0], roleId})
 	}
@@ -335,7 +335,7 @@ func main() {
 				Type: discordgo.ApplicationCommandOptionString, Name: "code",
 				Description: config.Require("PARAMETER_DESCRIPTION_DRIVE_TOKEN_CMD"), Required: true,
 			}}
-			driveTokenName, cmds = common.AppendCommand(cmds, cmdConfig, "DRIVE_TOKEN", stringParam)
+			driveTokenName, cmds = common.AppendCommand(cmds, cmdConfig["DRIVE_TOKEN"], stringParam)
 			followLinkMsg := strings.ReplaceAll(config.Require("MESSAGE_FOLLOW_LINK"), common.CmdPlaceHolder, driveTokenName)
 
 			driveConfig = gdrive.ReadConfig(credentialsPath, tokenPath, followLinkMsg)

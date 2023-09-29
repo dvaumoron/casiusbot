@@ -196,9 +196,8 @@ func IdInSet(ids []string, idSet StringSet) bool {
 	return false
 }
 
-func AppendCommand(cmds []*discordgo.ApplicationCommand, cmdConfig map[string][2]string, cmdConfName string, options []*discordgo.ApplicationCommandOption) (string, []*discordgo.ApplicationCommand) {
-	cmdData, ok := cmdConfig[cmdConfName]
-	if ok {
+func AppendCommand(cmds []*discordgo.ApplicationCommand, cmdData [2]string, options []*discordgo.ApplicationCommandOption) (string, []*discordgo.ApplicationCommand) {
+	if cmdData[0] == "" {
 		cmds = append(cmds, &discordgo.ApplicationCommand{
 			Name: cmdData[0], Description: cmdData[1], Options: options,
 		})
