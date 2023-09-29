@@ -70,7 +70,7 @@ func transformNick(nickName string, roleIds []string, info common.GuildAndConfIn
 func cleanPrefixInNick(nick string, prefixes []string) string {
 	for _, prefix := range prefixes {
 		if strings.HasPrefix(nick, prefix) {
-			return nick[len(prefix):]
+			return strings.TrimSpace(nick[len(prefix):])
 		}
 	}
 	return nick

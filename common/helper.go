@@ -187,14 +187,14 @@ func IdInSet(ids []string, idSet StringSet) bool {
 	return false
 }
 
-func AppendCommand(cmds []*discordgo.ApplicationCommand, config Config, cmdConfName string, cmdDescConfName string, options []*discordgo.ApplicationCommandOption) (string, []*discordgo.ApplicationCommand) {
-	cmdName := config.GetString(cmdConfName)
-	if cmdName != "" {
+func AppendCommand(cmds []*discordgo.ApplicationCommand, cmdConfig map[string][2]string, cmdConfName string, options []*discordgo.ApplicationCommandOption) (string, []*discordgo.ApplicationCommand) {
+	cmdData, ok := cmdConfig[cmdConfName]
+	if ok {
 		cmds = append(cmds, &discordgo.ApplicationCommand{
-			Name: cmdName, Description: config.Require(cmdDescConfName), Options: options,
+			Name: cmdData[0], Description: cmdData[1], Options: options,
 		})
 	}
-	return cmdName, cmds
+	return cmdData[0], cmds
 }
 
 func AddNonEmpty[T any](m map[string]T, name string, value T) {

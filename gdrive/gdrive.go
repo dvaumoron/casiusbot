@@ -159,15 +159,17 @@ func (config *DriveConfig) sendRefreshUrl(errorMsgSender chan<- common.Multipart
 	errorMsgSender <- common.MultipartMessage{Message: strings.ReplaceAll(config.followLinkMsg, "{{link}}", authURL)}
 }
 
-func (config *DriveConfig) DriveTokenCmdEffect(i *discordgo.InteractionCreate, msgs common.Messages) string {
-	if options := i.ApplicationCommandData().Options; len(options) != 0 {
-		if err := config.saveToken(options[0].StringValue()); err == nil {
-			return msgs.Ok
-		} else {
-			log.Println("Unable to save Google Drive token :", err)
+func (config *DriveConfig) DriveTokenCmd(s *discordgo.Session, i *discordgo.InteractionCreate, infos common.GuildAndConfInfo) {
+	common.AuthorizedCmd(s, i, infos, func() string {
+		if options := i.ApplicationCommandData().Options; len(options) != 0 {
+			if err := config.saveToken(options[0].StringValue()); err == nil {
+				return infos.Msgs.Ok
+			} else {
+				log.Println("Unable to save Google Drive token :", err)
+			}
 		}
-	}
-	return msgs.ErrGlobal
+		return infos.Msgs.ErrGlobal
+	})
 }
 
 // Write the token retrieved from browser in a file.

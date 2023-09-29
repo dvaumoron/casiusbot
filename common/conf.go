@@ -97,29 +97,62 @@ func (c Config) Require(valueConfName string) string {
 }
 
 func (c Config) GetPrefixConfig() (map[string]string, []string, [][2]string, []string) {
+	rules, ok := c.data["PREFIX_RULES"].([]any)
+	if !ok {
+		panic("Malformed PREFIX_RULES")
+	}
+
 	nameToPrefix := map[string]string{}
 	prefixes := []string{}
 	cmdAndNames := [][2]string{}
 	specialRoles := []string{}
-	for _, rule := range c.GetSlice("PREFIX_RULES") {
-		if casted, ok := rule.(map[string]any); ok {
-			if name, _ := casted["ROLE"].(string); name != "" {
-				prefix, _ := casted["PREFIX"].(string)
-				prefix += " "
+	for _, rule := range rules {
+		casted, ok := rule.(map[string]any)
+		if !ok {
+			panic("Malformed rule")
+		}
 
-				nameToPrefix[name] = prefix
-				prefixes = append(prefixes, prefix)
+		if name, _ := casted["ROLE"].(string); name != "" {
+			prefix, _ := casted["PREFIX"].(string)
+			if prefix == "" {
+				panic("Rule without PREFIX : " + name)
+			}
 
-				if cmd, _ := casted["CMD"].(string); cmd == "" {
-					specialRoles = append(specialRoles, name)
-				} else {
-					cmdAndNames = append(cmdAndNames, [2]string{cmd, name})
-				}
+			nameToPrefix[name] = prefix + " "
+			prefixes = append(prefixes, prefix)
 
+			if cmd, _ := casted["CMD"].(string); cmd == "" {
+				specialRoles = append(specialRoles, name)
+			} else {
+				cmdAndNames = append(cmdAndNames, [2]string{cmd, name})
 			}
 		}
 	}
 	return nameToPrefix, prefixes, cmdAndNames, specialRoles
+}
+
+func (c Config) GetCommandConfig() map[string][2]string {
+	cmds, ok := c.data["CMDS"].(map[string]any)
+	if !ok {
+		panic("Malformed CMDS")
+	}
+
+	res := map[string][2]string{}
+	for cmdName, cmdData := range cmds {
+		casted, ok := cmdData.(map[string]any)
+		if !ok {
+			panic("Malformed command : " + cmdName)
+		}
+
+		if cmd, _ := casted["CMD"].(string); cmd != "" {
+			desc, _ := casted["DESCRIPTION"].(string)
+			if desc == "" {
+				panic("Command without DESCRIPTION : " + cmdName)
+			}
+			res[cmdName] = [2]string{cmd, desc}
+		}
+	}
+	return res
 }
 
 func (c Config) GetIdSet(namesConfName string, nameToId map[string]string) StringSet {

@@ -70,22 +70,31 @@ DRIVE_CREDENTIALS_PATH: ""
 DRIVE_TOKEN_PATH: ""
 DRIVE_FOLDER_ID: ""
 
-# without APPLY_CMD, CLEAN_CMD, RESET_CMD, COUNT_CMD, RESET_ALL_CMD or USER_ACTIVITIES_CMD, the corresponding command is not initialized
-APPLY_CMD: "apply-prefix"
-DESCRIPTION_APPLY_CMD: "Apply the prefix rule to all users"
-CLEAN_CMD: "clean-prefix"
-DESCRIPTION_CLEAN_CMD: "Clean the prefix for all users"
+# without the CMD field, the corresponding command is not initialized
+CMDS:
+  APPLY:
+    CMD: "apply-prefix"
+    DESCRIPTION: "Apply the prefix rule to all users"
+  CLEAN:
+    CMD: "clean-prefix"
+    DESCRIPTION: "Clean the prefix for all users"
+  RESET:
+    CMD: "reset"
+    DESCRIPTION: "Reset your role"
+  COUNT:
+    CMD: "count"
+    DESCRIPTION: "Count users by role"
+  RESET_ALL:
+    CMD: "reset-all"
+    DESCRIPTION: "Reset role for all users"
+  USER_ACTIVITIES:
+    CMD: "user-activities"
+    DESCRIPTION: "Retrieve user activities data"
+  DRIVE_TOKEN:
+    CMD: "drive-token"
+    DESCRIPTION: "Refresh Google Drive access token"
+
 DESCRIPTION_ROLE_CMD: "Change your role to {{role}}"
-RESET_CMD: "reset"
-DESCRIPTION_RESET_CMD: "Reset your role"
-COUNT_CMD: "count"
-DESCRIPTION_COUNT_CMD: "Count users by role"
-RESET_ALL_CMD: "reset-all"
-DESCRIPTION_RESET_ALL_CMD: "Reset role for all users"
-USER_ACTIVITIES_CMD: "user-activities"
-DESCRIPTION_USER_ACTIVITIES_CMD: "Retrieve user activities data"
-DRIVE_TOKEN_CMD: "drive-token"
-DESCRIPTION_DRIVE_TOKEN_CMD: "Refresh Google Drive access token"
 PARAMETER_DESCRIPTION_DRIVE_TOKEN_CMD: "authorization code"
 
 MESSAGE_CMD_OK: "Hey there ! Congratulations, you have lauched the command"

@@ -92,18 +92,20 @@ func main() {
 		}
 	}
 
-	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+5)
-	applyName, cmds := common.AppendCommand(cmds, config, "APPLY_CMD", "DESCRIPTION_APPLY_CMD", nil)
-	cleanName, cmds := common.AppendCommand(cmds, config, "CLEAN_CMD", "DESCRIPTION_CLEAN_CMD", nil)
-	resetName, cmds := common.AppendCommand(cmds, config, "RESET_CMD", "DESCRIPTION_RESET_CMD", nil)
-	resetAllName, cmds := common.AppendCommand(cmds, config, "RESET_ALL_CMD", "DESCRIPTION_RESET_ALL_CMD", nil)
-	countName, cmds := common.AppendCommand(cmds, config, "COUNT_CMD", "DESCRIPTION_COUNT_CMD", nil)
+	cmdConfig := config.GetCommandConfig()
+
+	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+7)
+	applyName, cmds := common.AppendCommand(cmds, cmdConfig, "APPLY", nil)
+	cleanName, cmds := common.AppendCommand(cmds, cmdConfig, "CLEAN", nil)
+	resetName, cmds := common.AppendCommand(cmds, cmdConfig, "RESET", nil)
+	resetAllName, cmds := common.AppendCommand(cmds, cmdConfig, "RESET_ALL", nil)
+	countName, cmds := common.AppendCommand(cmds, cmdConfig, "COUNT", nil)
 	roleCmdDesc := config.Require("DESCRIPTION_ROLE_CMD")
 
 	userActivitiesName := ""
 	monitorActivity := activityPath != "" && saveActivityInterval > 0
 	if monitorActivity {
-		userActivitiesName, cmds = common.AppendCommand(cmds, config, "USER_ACTIVITIES_CMD", "DESCRIPTION_USER_ACTIVITIES_CMD", nil)
+		userActivitiesName, cmds = common.AppendCommand(cmds, cmdConfig, "USER_ACTIVITIES", nil)
 	}
 
 	session, err := discordgo.New("Bot " + config.Require("BOT_TOKEN"))
@@ -308,6 +310,17 @@ func main() {
 		}
 	})
 
+	if joiningRoleId := roleNameToId[joiningRole]; joiningRoleId != "" {
+		// joining rule is after prefix rule, to manage case where joining role have a prefix
+		session.AddHandler(func(s *discordgo.Session, r *discordgo.GuildMemberAdd) {
+			if err := s.GuildMemberRoleAdd(guildId, r.User.ID, joiningRoleId); err != nil {
+				log.Println("Joining role addition failed :", err)
+			}
+		})
+	}
+	// for GC cleaning
+	joiningRole = ""
+
 	driveTokenName := ""
 	var driveConfig gdrive.DriveConfig
 	var saveChan chan bool
@@ -322,7 +335,7 @@ func main() {
 				Type: discordgo.ApplicationCommandOptionString, Name: "code",
 				Description: config.Require("PARAMETER_DESCRIPTION_DRIVE_TOKEN_CMD"), Required: true,
 			}}
-			driveTokenName, cmds = common.AppendCommand(cmds, config, "DRIVE_TOKEN_CMD", "DESCRIPTION_DRIVE_TOKEN_CMD", stringParam)
+			driveTokenName, cmds = common.AppendCommand(cmds, cmdConfig, "DRIVE_TOKEN", stringParam)
 			followLinkMsg := strings.ReplaceAll(config.Require("MESSAGE_FOLLOW_LINK"), common.CmdPlaceHolder, driveTokenName)
 
 			driveConfig = gdrive.ReadConfig(credentialsPath, tokenPath, followLinkMsg)
@@ -347,17 +360,6 @@ func main() {
 			}
 		})
 	}
-
-	if joiningRoleId := roleNameToId[joiningRole]; joiningRoleId != "" {
-		// joining rule is after prefix rule, to manage case where joining role have a prefix
-		session.AddHandler(func(s *discordgo.Session, r *discordgo.GuildMemberAdd) {
-			if err := s.GuildMemberRoleAdd(guildId, r.User.ID, joiningRoleId); err != nil {
-				log.Println("Joining role addition failed :", err)
-			}
-		})
-	}
-	// for GC cleaning
-	joiningRole = ""
 
 	execCmds := map[string]func(*discordgo.Session, *discordgo.InteractionCreate){}
 	common.AddNonEmpty(execCmds, applyName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -405,9 +407,7 @@ func main() {
 		})
 	})
 	common.AddNonEmpty(execCmds, driveTokenName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		common.AuthorizedCmd(s, i, infos, func() string {
-			return driveConfig.DriveTokenCmdEffect(i, infos.Msgs)
-		})
+		driveConfig.DriveTokenCmd(s, i, infos)
 	})
 
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
