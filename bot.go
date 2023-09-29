@@ -33,27 +33,25 @@ import (
 )
 
 func main() {
-	config, err := common.ReadConfig()
-	if err != nil {
-		log.Println(err)
-		return
-	}
+	defer common.LogBeforeShutdown()
 
+	config := common.ReadConfig()
 	roleNameToPrefix, prefixes, cmdAndRoleNames, specialRoles := config.GetPrefixConfig()
 
-	okCmdMsg := config.GetString("MESSAGE_CMD_OK")
-	errUnauthorizedCmdMsg := common.BuildMsgWithNameValueList(config.GetString("MESSAGE_CMD_UNAUTHORIZED"), roleNameToPrefix)
 	errGlobalCmdMsg := config.GetString("MESSAGE_CMD_GLOBAL_ERROR")
 	errPartialCmdMsg := config.GetString("MESSAGE_CMD_PARTIAL_ERROR")
-	countCmdMsg := config.GetString("MESSAGE_CMD_COUNT")
-	prefixMsg := config.GetString("MESSAGE_PREFIX")
-	noChangeMsg := config.GetString("MESSAGE_NO_CHANGE")
-	endedCmdMsg := config.GetString("MESSAGE_CMD_ENDED")
-	ownerMsg := config.GetString("MESSAGE_OWNER")
-	msgs := [...]string{
-		okCmdMsg, errUnauthorizedCmdMsg, errGlobalCmdMsg, errPartialCmdMsg,
-		countCmdMsg, prefixMsg, noChangeMsg, endedCmdMsg, ownerMsg,
-		common.CleanMessage(errGlobalCmdMsg), common.CleanMessage(errPartialCmdMsg),
+	msgs := common.Messages{
+		Ok:              config.GetString("MESSAGE_CMD_OK"),
+		ErrUnauthorized: common.BuildMsgWithNameValueList(config.GetString("MESSAGE_CMD_UNAUTHORIZED"), roleNameToPrefix),
+		ErrGlobalCmd:    errGlobalCmdMsg,
+		ErrPartialCmd:   errPartialCmdMsg,
+		Count:           config.GetString("MESSAGE_CMD_COUNT"),
+		Prefix:          config.GetString("MESSAGE_PREFIX"),
+		NoChange:        config.GetString("MESSAGE_NO_CHANGE"),
+		EndedCmd:        config.GetString("MESSAGE_CMD_ENDED"),
+		Owner:           config.GetString("MESSAGE_OWNER"),
+		ErrGlobal:       common.CleanMessage(errGlobalCmdMsg),
+		ErrPartial:      common.CleanMessage(errPartialCmdMsg),
 	}
 
 	guildId := config.Require("GUILD_ID")
@@ -76,7 +74,7 @@ func main() {
 	targetActivitiesChannelName := config.GetString("TARGET_ACTIVITIES_CHANNEL")
 
 	if checkInterval == 0 {
-		log.Fatalln("CHECK_INTERVAL is required")
+		panic("CHECK_INTERVAL is required")
 	}
 
 	var translater Translater
@@ -94,11 +92,6 @@ func main() {
 		}
 	}
 
-	monitorActivity := activityPath != "" && saveActivityInterval > 0
-	credentialsPath := config.GetPath("DRIVE_CREDENTIALS_PATH")
-	tokenPath := config.GetPath("DRIVE_TOKEN_PATH")
-	driveFolderId := config.GetString("DRIVE_FOLDER_ID")
-
 	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+5)
 	applyName, cmds := common.AppendCommand(cmds, config, "APPLY_CMD", "DESCRIPTION_APPLY_CMD", nil)
 	cleanName, cmds := common.AppendCommand(cmds, config, "CLEAN_CMD", "DESCRIPTION_CLEAN_CMD", nil)
@@ -108,27 +101,26 @@ func main() {
 	roleCmdDesc := config.Require("DESCRIPTION_ROLE_CMD")
 
 	userActivitiesName := ""
-
+	monitorActivity := activityPath != "" && saveActivityInterval > 0
 	if monitorActivity {
 		userActivitiesName, cmds = common.AppendCommand(cmds, config, "USER_ACTIVITIES_CMD", "DESCRIPTION_USER_ACTIVITIES_CMD", nil)
 	}
 
 	session, err := discordgo.New("Bot " + config.Require("BOT_TOKEN"))
 	if err != nil {
-		log.Fatalln("Cannot create the bot :", err)
+		panic(fmt.Sprint("Cannot create the bot :", err))
 	}
 	session.Identify.Intents |= discordgo.IntentGuildMembers
 
 	err = session.Open()
 	if err != nil {
-		log.Fatalln("Cannot open the session :", err)
+		panic(fmt.Sprint("Cannot open the session :", err))
 	}
 	defer session.Close()
 
 	guild, err := session.Guild(guildId)
 	if err != nil {
-		log.Println("Cannot retrieve the guild :", err)
-		return // to allow defer
+		panic(fmt.Sprint("Cannot retrieve the guild :", err))
 	}
 	ownerId := guild.OwnerID
 	guildRoles := guild.Roles
@@ -137,8 +129,7 @@ func main() {
 
 	guildChannels, err := session.GuildChannels(guildId)
 	if err != nil {
-		log.Println("Cannot retrieve the guild channels :", err)
-		return // to allow defer
+		panic(fmt.Sprint("Cannot retrieve the guild channels :", err))
 	}
 
 	targetReminderChannelId := ""
@@ -166,24 +157,19 @@ func main() {
 		}
 	}
 	if targetReminderChannelId == "" {
-		log.Println("Cannot retrieve the guild channel for reminders :", targetReminderChannelName)
-		return // to allow defer
+		panic("Cannot retrieve the guild channel for reminders : " + targetReminderChannelName)
 	}
 	if targetPrefixChannelId == "" && targetPrefixChannelName != "" {
-		log.Println("Cannot retrieve the guild channel for nickname update messages :", targetPrefixChannelName)
-		return // to allow defer
+		panic("Cannot retrieve the guild channel for nickname update messages : " + targetPrefixChannelName)
 	}
 	if targetCmdChannelId == "" && (applyName != "" || cleanName != "") {
-		log.Println("Cannot retrieve the guild channel for background command messages :", targetCmdChannelName)
-		return // to allow defer
+		panic("Cannot retrieve the guild channel for background command messages : " + targetCmdChannelName)
 	}
 	if targetNewsChannelId == "" && feedActived {
-		log.Println("Cannot retrieve the guild channel for news :", targetNewsChannelName)
-		return // to allow defer
+		panic("Cannot retrieve the guild channel for news : " + targetNewsChannelName)
 	}
 	if targetActivitiesChannelId == "" && userActivitiesName != "" {
-		log.Println("Cannot retrieve the guild channel for activities :", targetActivitiesChannelName)
-		return // to allow defer
+		panic("Cannot retrieve the guild channel for activities : " + targetActivitiesChannelName)
 	}
 	// for GC cleaning
 	guildChannels = nil
@@ -222,11 +208,10 @@ func main() {
 	for _, cmdAndRoleName := range cmdAndRoleNames {
 		roleId := roleNameToId[cmdAndRoleName[1]]
 		if roleId == "" {
-			log.Println("Unrecognized role name :", cmdAndRoleName[1])
-			return // to allow defer
+			panic("Unrecognized role name : " + cmdAndRoleName[1])
 		}
 		cmds = append(cmds, &discordgo.ApplicationCommand{
-			Name: cmdAndRoleName[0], Description: strings.ReplaceAll(roleCmdDesc, "{{role}}", roleIdToDisplayName[roleId]),
+			Name: cmdAndRoleName[0], Description: strings.ReplaceAll(roleCmdDesc, common.RolePlaceHolder, roleIdToDisplayName[roleId]),
 		})
 		cmdRoleIds[roleId] = common.Empty{}
 		cmdAndRoleIds = append(cmdAndRoleIds, [2]string{cmdAndRoleName[0], roleId})
@@ -234,30 +219,16 @@ func main() {
 	// for GC cleaning
 	cmdAndRoleNames = nil
 
-	authorizedRoleIds, err := config.GetIdSet("AUTHORIZED_ROLES", roleNameToId)
-	if err != nil {
-		log.Println(err)
-		return // to allow defer
-	}
-	forbiddenRoleIds, err := config.GetIdSet("FORBIDDEN_ROLES", roleNameToId)
-	if err != nil {
-		log.Println(err)
-		return // to allow defer
-	}
+	authorizedRoleIds := config.GetIdSet("AUTHORIZED_ROLES", roleNameToId)
+	forbiddenRoleIds := config.GetIdSet("FORBIDDEN_ROLES", roleNameToId)
+	ignoredRoleIds := config.GetIdSet("IGNORED_ROLES", roleNameToId)
 
 	defaultRoleId := roleNameToId[defaultRole]
 	if defaultRoleId == "" {
-		log.Println("Unrecognized role name for default :", defaultRole)
-		return // to allow defer
+		panic("Unrecognized role name for default : " + defaultRole)
 	}
 	// for GC cleaning
 	defaultRole = ""
-
-	ignoredRoleIds, err := config.GetIdSet("IGNORED_ROLES", roleNameToId)
-	if err != nil {
-		log.Println(err)
-		return // to allow defer
-	}
 
 	// merge the two categories
 	forbiddenAndignoredRoleIds := common.StringSet{}
@@ -276,22 +247,14 @@ func main() {
 		adminitrativeRoleIds[roleId] = common.Empty{}
 	}
 
-	specialRoleIds, err := common.InitIdSet(specialRoles, roleNameToId)
-	if err != nil {
-		log.Println(err)
-		return // to allow defer
-	}
+	specialRoleIds := common.InitIdSet(specialRoles, roleNameToId)
 	// for GC cleaning
 	specialRoles = nil
 
 	var countFilterRoleIds common.StringSet
 	switch countFilterType := config.GetString("COUNT_FILTER_TYPE"); countFilterType {
 	case "list":
-		countFilterRoleIds, err = config.GetIdSet("COUNT_FILTER_ROLES", roleNameToId)
-		if err != nil {
-			log.Println(err)
-			return // to allow defer
-		}
+		countFilterRoleIds = config.GetIdSet("COUNT_FILTER_ROLES", roleNameToId)
 	case "prefix":
 		countFilterRoleIds = prefixRoleIds
 	case "cmdPrefix":
@@ -299,8 +262,7 @@ func main() {
 	case "":
 		// a nil countFilterRoleIds disable filtering
 	default:
-		log.Println("COUNT_FILTER_TYPE must be empty or one of : \"list\", \"prefix\", \"cmdPrefix\"")
-		return // to allow defer
+		panic("COUNT_FILTER_TYPE must be empty or one of : \"list\", \"prefix\", \"cmdPrefix\"")
 	}
 	// for GC cleaning
 	roleNameToId = nil
@@ -315,8 +277,7 @@ func main() {
 
 	guildMembers, err := session.GuildMembers(guildId, "", 1000)
 	if err != nil {
-		log.Println("Cannot retrieve guild members :", err)
-		return // to allow defer
+		panic(fmt.Sprint("Cannot retrieve guild members :", err))
 	}
 
 	channelManager := common.MakeChannelSenderManager(session)
@@ -351,6 +312,10 @@ func main() {
 	var driveConfig gdrive.DriveConfig
 	var saveChan chan bool
 	if monitorActivity {
+		credentialsPath := config.GetPath("DRIVE_CREDENTIALS_PATH")
+		tokenPath := config.GetPath("DRIVE_TOKEN_PATH")
+		driveFolderId := config.GetString("DRIVE_FOLDER_ID")
+
 		if credentialsPath != "" && tokenPath != "" && driveFolderId != "" {
 			stringParam := []*discordgo.ApplicationCommandOption{{
 				Type: discordgo.ApplicationCommandOptionString, Name: "code",
@@ -359,11 +324,7 @@ func main() {
 			driveTokenName, cmds = common.AppendCommand(cmds, config, "DRIVE_TOKEN_CMD", "DESCRIPTION_DRIVE_TOKEN_CMD", stringParam)
 			followLinkMsg := strings.ReplaceAll(config.Require("MESSAGE_FOLLOW_LINK"), common.CmdPlaceHolder, driveTokenName)
 
-			driveConfig, err = gdrive.ReadConfig(credentialsPath, tokenPath, followLinkMsg)
-			if err != nil {
-				log.Println("Google Drive configuration initialization failed :", err)
-				return // to allow defer
-			}
+			driveConfig = gdrive.ReadConfig(credentialsPath, tokenPath, followLinkMsg)
 
 			// wrap the channel sender (used for errors or refresh token links)
 			activityFileSender = driveConfig.CreateDriveSender(driveFolderId, activityFileSender)
@@ -439,12 +400,12 @@ func main() {
 	common.AddNonEmpty(execCmds, userActivitiesName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		common.AuthorizedCmd(s, i, infos, func() string {
 			saveChan <- true
-			return okCmdMsg
+			return msgs.Ok
 		})
 	})
 	common.AddNonEmpty(execCmds, driveTokenName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		common.AuthorizedCmd(s, i, infos, func() string {
-			return driveConfig.DriveTokenCmdEffect(i, infos)
+			return driveConfig.DriveTokenCmdEffect(i, infos.Msgs)
 		})
 	})
 

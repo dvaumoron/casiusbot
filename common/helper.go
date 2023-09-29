@@ -20,9 +20,9 @@ package common
 
 import (
 	"cmp"
-	"errors"
 	"log"
 	"math/rand"
+	"os"
 	"regexp"
 	"slices"
 	"strconv"
@@ -37,6 +37,7 @@ import (
 const (
 	CmdPlaceHolder      = "{{cmd}}"
 	NumErrorPlaceHolder = "{{numError}}"
+	RolePlaceHolder     = "{{role}}"
 )
 
 type Empty = struct{}
@@ -56,7 +57,21 @@ type GuildAndConfInfo struct {
 	RoleIdToPrefix             map[string]string
 	Prefixes                   []string
 	RoleIdToDisplayName        map[string]string
-	Msgs                       [11]string
+	Msgs                       Messages
+}
+
+type Messages struct {
+	Ok              string
+	ErrUnauthorized string
+	ErrGlobalCmd    string
+	ErrPartialCmd   string
+	Count           string
+	Prefix          string
+	NoChange        string
+	EndedCmd        string
+	Owner           string
+	ErrGlobal       string
+	ErrPartial      string
 }
 
 type IdMonitor struct {
@@ -122,6 +137,13 @@ func (m ChannelSenderManager) Get(channelId string) chan<- MultipartMessage {
 	return m.channels[channelId]
 }
 
+func LogBeforeShutdown() {
+	if err := recover(); err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+}
+
 // Remove "{{cmd}}" place holder and replace multiple space in row by one space
 func CleanMessage(msg string) string {
 	index := 0
@@ -144,16 +166,16 @@ func CleanMessage(msg string) string {
 	return string(newMsg[:lastNonSpace+1])
 }
 
-func InitIdSet(trimmedNames []string, nameToId map[string]string) (StringSet, error) {
+func InitIdSet(names []string, nameToId map[string]string) StringSet {
 	idSet := StringSet{}
-	for _, name := range trimmedNames {
+	for _, name := range names {
 		id := nameToId[name]
 		if id == "" {
-			return nil, errors.New("Unrecognized name (2) : " + name)
+			panic("Unrecognized name (2) : " + name)
 		}
-		idSet[nameToId[name]] = Empty{}
+		idSet[id] = Empty{}
 	}
-	return idSet, nil
+	return idSet
 }
 
 func IdInSet(ids []string, idSet StringSet) bool {
@@ -182,7 +204,7 @@ func AddNonEmpty[T any](m map[string]T, name string, value T) {
 }
 
 func AuthorizedCmd(s *discordgo.Session, i *discordgo.InteractionCreate, infos GuildAndConfInfo, cmdEffect func() string) {
-	returnMsg := infos.Msgs[1]
+	returnMsg := infos.Msgs.ErrUnauthorized
 	if IdInSet(i.Member.Roles, infos.AuthorizedRoleIds) {
 		returnMsg = cmdEffect()
 	}
@@ -196,19 +218,19 @@ func AuthorizedCmd(s *discordgo.Session, i *discordgo.InteractionCreate, infos G
 func MembersCmd(s *discordgo.Session, i *discordgo.InteractionCreate, messageSender chan<- MultipartMessage, cmdName string, infos GuildAndConfInfo, userMonitor *IdMonitor, cmdEffect func(*discordgo.Member) int) {
 	AuthorizedCmd(s, i, infos, func() string {
 		go processMembers(s, messageSender, cmdName, infos, userMonitor, cmdEffect)
-		return infos.Msgs[0]
+		return infos.Msgs.Ok
 	})
 }
 
 func processMembers(s *discordgo.Session, messageSender chan<- MultipartMessage, cmdName string, infos GuildAndConfInfo, userMonitor *IdMonitor, cmdEffect func(*discordgo.Member) int) {
-	msg := infos.Msgs[7]
+	msg := infos.Msgs.EndedCmd
 	if guildMembers, err := s.GuildMembers(infos.GuildId, "", 1000); err == nil {
 		if counterError := ProcessMembers(guildMembers, userMonitor, cmdEffect); counterError != 0 {
-			msg = strings.ReplaceAll(infos.Msgs[3], NumErrorPlaceHolder, strconv.Itoa(counterError))
+			msg = strings.ReplaceAll(infos.Msgs.ErrPartialCmd, NumErrorPlaceHolder, strconv.Itoa(counterError))
 		}
 	} else {
 		log.Println("Cannot retrieve guild members (3) :", err)
-		msg = infos.Msgs[2]
+		msg = infos.Msgs.ErrGlobalCmd
 	}
 	messageSender <- MultipartMessage{Message: strings.ReplaceAll(msg, CmdPlaceHolder, cmdName)}
 }

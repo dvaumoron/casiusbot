@@ -106,14 +106,14 @@ func applyPrefix(s *discordgo.Session, messageSender chan<- common.MultipartMess
 		}
 		if newNick == nick {
 			if forceSend && messageSender != nil {
-				msg := strings.ReplaceAll(infos.Msgs[6], "{{user}}", nick)
-				msg = strings.ReplaceAll(msg, "{{role}}", infos.RoleIdToDisplayName[usedRoleId])
+				msg := strings.ReplaceAll(infos.Msgs.NoChange, "{{user}}", nick)
+				msg = strings.ReplaceAll(msg, common.RolePlaceHolder, infos.RoleIdToDisplayName[usedRoleId])
 				messageSender <- common.MultipartMessage{Message: msg}
 			}
 		} else {
 			if err := s.GuildMemberNickname(infos.GuildId, userId, newNick); err == nil {
 				if messageSender != nil {
-					msg := strings.ReplaceAll(infos.Msgs[5], "{{old}}", nick)
+					msg := strings.ReplaceAll(infos.Msgs.Prefix, "{{old}}", nick)
 					msg = strings.ReplaceAll(msg, "{{new}}", newNick)
 					messageSender <- common.MultipartMessage{Message: msg}
 				}

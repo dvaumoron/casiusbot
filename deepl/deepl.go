@@ -21,6 +21,7 @@ package deepl
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -45,12 +46,12 @@ type DeepLClient struct {
 func MakeClient(baseUrl string, token string, sourceLang string, targetLang string, messageError string, messageLimit string) DeepLClient {
 	usageUrl, err := url.JoinPath(baseUrl, "v2/usage")
 	if err != nil {
-		log.Fatalln("Failed to create translater :", err)
+		panic(fmt.Sprint("Failed to create translater :", err))
 	}
 
 	translateUrl, err := url.JoinPath(baseUrl, "v2/translate")
 	if err != nil {
-		log.Fatalln("Failed to create translater (2) :", err)
+		panic(fmt.Sprint("Failed to create translater (2) :", err))
 	}
 
 	return DeepLClient{

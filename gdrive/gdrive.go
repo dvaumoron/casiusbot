@@ -21,6 +21,7 @@ package gdrive
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"mime"
 	"net/http"
@@ -36,6 +37,8 @@ import (
 	"google.golang.org/api/option"
 )
 
+const configMsg = "Google Drive configuration initialization failed :"
+
 type DriveConfig struct {
 	authConfig    *oauth2.Config
 	tokenPath     string
@@ -44,16 +47,16 @@ type DriveConfig struct {
 	importFormats map[string][]string
 }
 
-func ReadConfig(credentialsPath string, tokenPath string, followLinkMsg string) (DriveConfig, error) {
+func ReadConfig(credentialsPath string, tokenPath string, followLinkMsg string) DriveConfig {
 	credentialsData, err := os.ReadFile(credentialsPath)
 	if err != nil {
-		return DriveConfig{}, err
+		panic(fmt.Sprint(configMsg, err))
 	}
+
 	// If modifying these scopes, delete your previously saved token.json.
 	authConfig, err := google.ConfigFromJSON(credentialsData, drive.DriveScope)
-
 	if err != nil {
-		return DriveConfig{}, err
+		panic(fmt.Sprint(configMsg, err))
 	}
 
 	var token *oauth2.Token
@@ -74,7 +77,7 @@ func ReadConfig(credentialsPath string, tokenPath string, followLinkMsg string) 
 			config.initImportFormats(srv) // ignore error
 		}
 	}
-	return config, nil
+	return config
 }
 
 func (config *DriveConfig) newService() (*drive.Service, error) {
@@ -156,15 +159,15 @@ func (config *DriveConfig) sendRefreshUrl(errorMsgSender chan<- common.Multipart
 	errorMsgSender <- common.MultipartMessage{Message: strings.ReplaceAll(config.followLinkMsg, "{{link}}", authURL)}
 }
 
-func (config *DriveConfig) DriveTokenCmdEffect(i *discordgo.InteractionCreate, infos common.GuildAndConfInfo) string {
+func (config *DriveConfig) DriveTokenCmdEffect(i *discordgo.InteractionCreate, msgs common.Messages) string {
 	if options := i.ApplicationCommandData().Options; len(options) != 0 {
 		if err := config.saveToken(options[0].StringValue()); err == nil {
-			return infos.Msgs[0]
+			return msgs.Ok
 		} else {
 			log.Println("Unable to save Google Drive token :", err)
 		}
 	}
-	return infos.Msgs[9]
+	return msgs.ErrGlobal
 }
 
 // Write the token retrieved from browser in a file.

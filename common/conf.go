@@ -19,7 +19,7 @@
 package common
 
 import (
-	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -30,12 +30,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const notIntegerMsg = "Configuration %v is not an integer %v (%T)"
+
 type Config struct {
 	basePath string
 	data     map[string]any
 }
 
-func ReadConfig() (Config, error) {
+func ReadConfig() Config {
 	confPath := "casiusbot.yaml"
 	if len(os.Args) > 1 {
 		confPath = os.Args[1]
@@ -44,14 +46,17 @@ func ReadConfig() (Config, error) {
 	log.Println("Load configuration from", confPath)
 	confBody, err := os.ReadFile(confPath)
 	if err != nil {
-		return Config{}, err
+		panic(fmt.Sprint("Unable to read configuration :", err))
 	}
 
 	confData := map[string]any{}
-	err = yaml.Unmarshal(confBody, confData)
+	if err = yaml.Unmarshal(confBody, confData); err != nil {
+		panic(fmt.Sprint("Unable to parse configuration :", err))
+	}
+
 	c := Config{basePath: path.Dir(confPath), data: confData}
 	c.initLog()
-	return c, err
+	return c
 }
 
 func (c Config) updatePath(filePath string) string {
@@ -83,7 +88,7 @@ func (c Config) GetString(valueConfName string) string {
 func (c Config) Require(valueConfName string) string {
 	value := c.GetString(valueConfName)
 	if value == "" {
-		log.Fatalln("Configuration value is missing :", valueConfName)
+		panic("Configuration value is missing : " + valueConfName)
 	}
 	return value
 }
@@ -114,24 +119,24 @@ func (c Config) GetPrefixConfig() (map[string]string, []string, [][2]string, []s
 	return nameToPrefix, prefixes, cmdAndNames, specialRoles
 }
 
-func (c Config) GetIdSet(namesConfName string, nameToId map[string]string) (StringSet, error) {
+func (c Config) GetIdSet(namesConfName string, nameToId map[string]string) StringSet {
 	names, ok := c.data[namesConfName].([]any)
 	if !ok {
-		return nil, nil
+		return nil
 	}
 	idSet := StringSet{}
 	for _, name := range names {
 		nameStr, ok := name.(string)
 		if !ok {
-			return nil, errors.New("a value is not a string in " + namesConfName)
+			panic("a value is not a string in " + namesConfName)
 		}
 		id := nameToId[nameStr]
 		if id == "" {
-			return nil, errors.New("Unrecognized name : " + nameStr)
+			panic("Unrecognized name : " + nameStr)
 		}
 		idSet[id] = Empty{}
 	}
-	return idSet, nil
+	return idSet
 }
 
 func (c Config) GetSlice(valuesConfName string) []any {
@@ -148,7 +153,7 @@ func (c Config) GetStringSlice(valuesConfName string) []string {
 	for _, value := range values {
 		valueStr, ok := value.(string)
 		if !ok {
-			log.Fatalln("a value is not a string in", valuesConfName)
+			panic("a value is not a string in" + valuesConfName)
 		}
 		casted = append(casted, valueStr)
 	}
@@ -159,7 +164,7 @@ func (c Config) GetDurationSec(valueConfName string) time.Duration {
 	value := c.data[valueConfName]
 	valueSec, ok := value.(int)
 	if !ok {
-		log.Printf("Configuration %v is not an integer (%T)", valueConfName, value)
+		log.Printf(notIntegerMsg, valueConfName, value, value)
 	}
 	return time.Duration(valueSec) * time.Second
 }
@@ -170,7 +175,7 @@ func (c Config) GetDelayMins(valuesConfName string) []time.Duration {
 	for _, value := range values {
 		valueMin, ok := value.(int)
 		if !ok {
-			log.Fatalf("Configuration %v is not an integer (%T)", valuesConfName, value)
+			panic(fmt.Sprintf(notIntegerMsg, valuesConfName, value, value))
 		}
 		delay := time.Duration(valueMin) * time.Minute
 		if delay > 0 {

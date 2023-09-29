@@ -28,11 +28,11 @@ import (
 )
 
 func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleId string, infos common.GuildAndConfInfo, userMonitor *common.IdMonitor) {
-	returnMsg := infos.Msgs[0]
+	returnMsg := infos.Msgs.Ok
 	if common.IdInSet(i.Member.Roles, infos.ForbiddenRoleIds) {
-		returnMsg = infos.Msgs[1]
+		returnMsg = infos.Msgs.ErrUnauthorized
 	} else if userId := i.Member.User.ID; userId == infos.OwnerId {
-		returnMsg = infos.Msgs[8]
+		returnMsg = infos.Msgs.Owner
 	} else if userMonitor.StartProcessing(userId) {
 		defer userMonitor.StopProcessing(userId)
 
@@ -40,7 +40,7 @@ func addRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, addedRoleI
 		if counterError := addRole(s, messageQueue, i.Member, addedRoleId, infos, true); counterError == 0 {
 			returnMsg = (<-messageQueue).Message
 		} else {
-			returnMsg = strings.ReplaceAll(infos.Msgs[10], common.NumErrorPlaceHolder, strconv.Itoa(counterError))
+			returnMsg = strings.ReplaceAll(infos.Msgs.ErrPartial, common.NumErrorPlaceHolder, strconv.Itoa(counterError))
 		}
 	}
 
@@ -85,13 +85,13 @@ func addRole(s *discordgo.Session, messageSender chan<- common.MultipartMessage,
 }
 
 func countRoleCmd(s *discordgo.Session, i *discordgo.InteractionCreate, roleCountExtracter func([]*discordgo.Member) map[string]int, infos common.GuildAndConfInfo) {
-	returnMsg := infos.Msgs[2]
+	returnMsg := infos.Msgs.ErrGlobalCmd
 	if guildMembers, err := s.GuildMembers(i.GuildID, "", 1000); err == nil {
 		roleNameToCountStr := map[string]string{}
 		for roleId, count := range roleCountExtracter(guildMembers) {
 			roleNameToCountStr[infos.RoleIdToDisplayName[roleId]] = strconv.Itoa(count)
 		}
-		returnMsg = common.BuildMsgWithNameValueList(infos.Msgs[4], roleNameToCountStr)
+		returnMsg = common.BuildMsgWithNameValueList(infos.Msgs.Count, roleNameToCountStr)
 	} else {
 		log.Println("Cannot retrieve guild members (2) :", err)
 	}

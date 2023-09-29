@@ -51,7 +51,7 @@ func bgManageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, 
 func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan memberActivity, saveTickReceiver <-chan bool, dataSender chan<- common.MultipartMessage, activityPath string, dateFormat string, cmdName string, infos common.GuildAndConfInfo) {
 	activities := loadActivities(activityPath, dateFormat)
 	activityFileName := filepath.Base(activityPath)
-	errorMsg := strings.ReplaceAll(infos.Msgs[2], common.CmdPlaceHolder, cmdName)
+	errorMsg := strings.ReplaceAll(infos.Msgs.ErrGlobalCmd, common.CmdPlaceHolder, cmdName)
 	for {
 		select {
 		case mActivity := <-activityChannelReceiver:
