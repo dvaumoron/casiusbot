@@ -44,11 +44,11 @@ type activityData struct {
 
 func bgManageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, dataSender chan<- common.MultipartMessage, activityPath string, dateFormat string, cmdName string, infos common.GuildAndConfInfo) chan<- memberActivity {
 	activityChannel := make(chan memberActivity)
-	go manageActivity(session, activityChannel, saveTickReceiver, dataSender, activityPath, dateFormat, cmdName, infos)
+	go manageActivity(session, saveTickReceiver, dataSender, activityPath, dateFormat, cmdName, infos, activityChannel)
 	return activityChannel
 }
 
-func manageActivity(session *discordgo.Session, activityChannelReceiver <-chan memberActivity, saveTickReceiver <-chan bool, dataSender chan<- common.MultipartMessage, activityPath string, dateFormat string, cmdName string, infos common.GuildAndConfInfo) {
+func manageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, dataSender chan<- common.MultipartMessage, activityPath string, dateFormat string, cmdName string, infos common.GuildAndConfInfo, activityChannelReceiver <-chan memberActivity) {
 	activities := loadActivities(activityPath, dateFormat)
 	activityFileName := filepath.Base(activityPath)
 	errorMsg := strings.ReplaceAll(infos.Msgs.ErrGlobalCmd, common.CmdPlaceHolder, cmdName)

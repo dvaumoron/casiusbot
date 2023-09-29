@@ -98,11 +98,11 @@ func (config *DriveConfig) initImportFormats(srv *drive.Service) error {
 
 func (config *DriveConfig) CreateDriveSender(driveFolderId string, errorMsgSender chan<- common.MultipartMessage) chan<- common.MultipartMessage {
 	messageChan := make(chan common.MultipartMessage)
-	go config.sendFileToDrive(driveFolderId, messageChan, errorMsgSender)
+	go config.sendFileToDrive(driveFolderId, errorMsgSender, messageChan)
 	return messageChan
 }
 
-func (config *DriveConfig) sendFileToDrive(driveFolderId string, dataReceiver <-chan common.MultipartMessage, errorMsgSender chan<- common.MultipartMessage) {
+func (config *DriveConfig) sendFileToDrive(driveFolderId string, errorMsgSender chan<- common.MultipartMessage, dataReceiver <-chan common.MultipartMessage) {
 	for multiMessage := range dataReceiver {
 		if config.token == nil {
 			config.sendRefreshUrl(errorMsgSender)
