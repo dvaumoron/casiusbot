@@ -53,7 +53,7 @@ func transformNick(nickName string, roleIds []string, info common.GuildAndConfIn
 			if notDone || special {
 				notDone = false
 				usedRoleId = roleId
-				// prefix already end with a space
+				// here prefix already end with a space
 				nickName = prefix + cleanedNickName
 			}
 		}
@@ -72,6 +72,7 @@ func transformNick(nickName string, roleIds []string, info common.GuildAndConfIn
 func cleanPrefixInNick(nick string, prefixes []string) string {
 	for _, prefix := range prefixes {
 		if strings.HasPrefix(nick, prefix) {
+			// here prefix have no space added at its end
 			return strings.TrimSpace(nick[len(prefix):])
 		}
 	}
