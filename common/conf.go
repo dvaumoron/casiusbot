@@ -118,7 +118,9 @@ func (c Config) GetPrefixConfig() (map[string]string, []string, [][2]string, []s
 				panic("Rule without PREFIX : " + name)
 			}
 
+			// nameToPrefix is meant for prefix addition, so adding the space here allow to do it only one time
 			nameToPrefix[name] = prefix + " "
+			// prefixes is meant for prefix removal, so keep it without space avoid error when an user change its nick
 			prefixes = append(prefixes, prefix)
 
 			if cmd, _ := casted["CMD"].(string); cmd == "" {
