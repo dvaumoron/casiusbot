@@ -125,7 +125,6 @@ func main() {
 	defer session.Close()
 
 	botId := session.State.Application.ID
-	log.Println("botId", botId)
 
 	guild, err := session.Guild(guildId)
 	if err != nil {
