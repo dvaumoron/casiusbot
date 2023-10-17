@@ -1,6 +1,5 @@
 BOT_TOKEN: ""
 GUILD_ID: ""
-BOT_ID: ""
 # without DEEPL_TOKEN, translation will be disabled
 DEEPL_TOKEN: ""
 DEEPL_API_URL: "https://api-free.deepl.com"

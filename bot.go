@@ -56,7 +56,6 @@ func main() {
 	}
 
 	guildId := config.Require("GUILD_ID")
-	botId := config.Require("BOT_ID")
 	chatReponsePath, keywordToResponse := config.GetChatResponsesConfig()
 	var keywordToResponseMutex sync.RWMutex
 
@@ -99,7 +98,7 @@ func main() {
 
 	cmdConfig := config.GetCommandConfig()
 
-	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+7)
+	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+8)
 	applyName, cmds := common.AppendCommand(cmds, cmdConfig["APPLY"], nil)
 	cleanName, cmds := common.AppendCommand(cmds, cmdConfig["CLEAN"], nil)
 	resetName, cmds := common.AppendCommand(cmds, cmdConfig["RESET"], nil)
@@ -117,13 +116,16 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprint("Cannot create the bot :", err))
 	}
-	session.Identify.Intents |= discordgo.IntentGuildMembers | discordgo.IntentMessageContent
+	session.Identify.Intents |= discordgo.IntentGuildMembers
 
 	err = session.Open()
 	if err != nil {
 		panic(fmt.Sprint("Cannot open the session :", err))
 	}
 	defer session.Close()
+
+	botId := session.State.Application.ID
+	log.Println("botId", botId)
 
 	guild, err := session.Guild(guildId)
 	if err != nil {
