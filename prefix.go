@@ -36,7 +36,9 @@ const (
 func transformNick(nickName string, roleIds []string, info common.GuildAndConfInfo) (string, string, uint8) {
 	cleanedNickName := cleanPrefixInNick(nickName, info.Prefixes)
 	nickName = cleanedNickName
-	usedRoleId, hasDefault, hasPrefix, notDone := "", false, false, true
+	// usedRoleId is meant for the message of role commands when there is no prefix change
+	// in case of useless reset command we need to indicate to the user it has already the default role
+	usedRoleId, hasDefault, hasPrefix, notDone := info.DefaultRoleId, false, false, true
 	for _, roleId := range roleIds {
 		if _, ok := info.ForbiddenRoleIds[roleId]; ok {
 			// not adding prefix nor default role for user with forbidden role
