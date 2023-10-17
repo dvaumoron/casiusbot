@@ -19,6 +19,7 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -230,4 +231,23 @@ func (c Config) GetPath(pathConfName string) string {
 		path = c.updatePath(path)
 	}
 	return path
+}
+
+func (c Config) GetChatResponsesConfig() (string, map[string]string) {
+	responsesPath := c.GetPath("CHAT_RESPONSES_PATH")
+	if responsesPath == "" {
+		log.Println("Bot chat without save")
+	}
+
+	data, err := os.ReadFile(responsesPath)
+	var parsed map[string]string
+	if err == nil {
+		if err := json.Unmarshal(data, &parsed); err != nil {
+			log.Println("Bot fail to remember its chat knowledge (2) :", err)
+		}
+	} else {
+		log.Println("Bot fail to remember its chat knowledge :", err)
+		parsed = map[string]string{}
+	}
+	return responsesPath, parsed
 }

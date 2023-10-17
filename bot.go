@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -55,6 +56,10 @@ func main() {
 	}
 
 	guildId := config.Require("GUILD_ID")
+	botId := config.Require("BOT_ID")
+	chatReponsePath, keywordToResponse := config.GetChatResponsesConfig()
+	var keywordToResponseMutex sync.RWMutex
+
 	joiningRole := config.GetString("JOINING_ROLE")
 	defaultRole := config.Require("DEFAULT_ROLE")
 	gameList := config.GetStringSlice("GAME_LIST")
@@ -112,7 +117,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprint("Cannot create the bot :", err))
 	}
-	session.Identify.Intents |= discordgo.IntentGuildMembers
+	session.Identify.Intents |= discordgo.IntentGuildMembers | discordgo.IntentMessageContent
 
 	err = session.Open()
 	if err != nil {
@@ -322,6 +327,7 @@ func main() {
 	joiningRole = ""
 
 	driveTokenName := ""
+	registerChatRuleName := ""
 	var driveConfig gdrive.DriveConfig
 	var saveChan chan bool
 	if monitorActivity {
@@ -348,10 +354,21 @@ func main() {
 		go common.SendTick(saveChan, saveActivityInterval)
 		activitySender := bgManageActivity(session, saveChan, activityFileSender, activityPath, dateFormat, userActivitiesName, infos)
 
+		stringParams := []*discordgo.ApplicationCommandOption{{
+			Type: discordgo.ApplicationCommandOptionString, Name: "keyword",
+			Description: config.Require("PARAMETER_DESCRIPTION_REGISTER_CHAT_RULE_CMD_1"), Required: true,
+		}, {
+			Type: discordgo.ApplicationCommandOptionString, Name: "response",
+			Description: config.Require("PARAMETER_DESCRIPTION_REGISTER_CHAT_RULE_CMD_2"), Required: true,
+		}}
+		registerChatRuleName, cmds = common.AppendCommand(cmds, cmdConfig["REGISTER_CHAT_RULE"], stringParams)
+
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
 			if u.Member != nil && !common.IdInSet(u.Member.Roles, adminitrativeRoleIds) {
 				activitySender <- memberActivity{userId: u.Author.ID, timestamp: time.Now()}
 			}
+
+			manageChatResponse(s, u, botId, channelManager, keywordToResponse, &keywordToResponseMutex)
 		})
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.VoiceStateUpdate) {
@@ -411,6 +428,9 @@ func main() {
 	})
 	common.AddNonEmpty(execCmds, driveTokenName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		driveConfig.DriveTokenCmd(s, i, infos)
+	})
+	common.AddNonEmpty(execCmds, registerChatRuleName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		registerChatResponseCmd(s, i, chatReponsePath, keywordToResponse, &keywordToResponseMutex, infos)
 	})
 
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {

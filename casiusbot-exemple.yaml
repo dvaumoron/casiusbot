@@ -1,5 +1,6 @@
 BOT_TOKEN: ""
 GUILD_ID: ""
+BOT_ID: ""
 # without DEEPL_TOKEN, translation will be disabled
 DEEPL_TOKEN: ""
 DEEPL_API_URL: "https://api-free.deepl.com"
@@ -69,6 +70,8 @@ DATE_FORMAT: "2/1/2006"
 DRIVE_CREDENTIALS_PATH: ""
 DRIVE_TOKEN_PATH: ""
 DRIVE_FOLDER_ID: ""
+# chat functionality need member activity monitoring to be enabled (separating them will need code changes)
+CHAT_RESPONSES_PATH: ""
 
 # without the CMD field, the corresponding command is not initialized
 CMDS:
@@ -93,9 +96,14 @@ CMDS:
   DRIVE_TOKEN:
     CMD: "drive-token"
     DESCRIPTION: "Refresh Google Drive access token"
+  REGISTER_CHAT_RULE:
+    CMD: "register-chat-rule"
+    DESCRIPTION: "Register a rule to change bot chatting"
 
 DESCRIPTION_ROLE_CMD: "Change your role to {{role}}"
 PARAMETER_DESCRIPTION_DRIVE_TOKEN_CMD: "authorization code"
+PARAMETER_DESCRIPTION_REGISTER_CHAT_RULE_CMD_1: "keyword"
+PARAMETER_DESCRIPTION_REGISTER_CHAT_RULE_CMD_2: "response phrase"
 
 MESSAGE_CMD_OK: "Hey there ! Congratulations, you have lauched the command"
 MESSAGE_CMD_UNAUTHORIZED: "Sorry, you can not do that, the following role to prefix linking are active :"
