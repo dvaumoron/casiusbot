@@ -98,17 +98,21 @@ CMDS:
   REGISTER_CHAT_RULE:
     CMD: "register-chat-rule"
     DESCRIPTION: "Register a rule to change bot chatting"
+  DISPLAY_CHAT_RULE:
+    CMD: "display-chat-rule"
+    DESCRIPTION: "Display the bot chatting rules"
 
 DESCRIPTION_ROLE_CMD: "Change your role to {{role}}"
 PARAMETER_DESCRIPTION_DRIVE_TOKEN_CMD: "authorization code"
 PARAMETER_DESCRIPTION_REGISTER_CHAT_RULE_CMD_1: "keyword"
-PARAMETER_DESCRIPTION_REGISTER_CHAT_RULE_CMD_2: "response phrase"
+PARAMETER_DESCRIPTION_REGISTER_CHAT_RULE_CMD_2: "response phrase (empty to delete the rule)"
 
 MESSAGE_CMD_OK: "Hey there ! Congratulations, you have lauched the command"
 MESSAGE_CMD_UNAUTHORIZED: "Sorry, you can not do that, the following role to prefix linking are active :"
 MESSAGE_CMD_GLOBAL_ERROR: "I got a problem trying to execute the {{cmd}} command"
 MESSAGE_CMD_PARTIAL_ERROR: "The {{cmd}} command was applied, but encounter {{numError}} error(s)"
 MESSAGE_CMD_COUNT: "Hey there ! I have counted the number of users by roles :"
+MESSAGE_CMD_DISPLAY: "Hey there ! I use the following rules :"
 MESSAGE_PREFIX: "{{old}} is now {{new}}"
 MESSAGE_NO_CHANGE: "{{user}}, you are already a {{role}}"
 MESSAGE_CMD_ENDED: "The {{cmd}} command have ended successfully"

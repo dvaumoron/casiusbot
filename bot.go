@@ -329,6 +329,7 @@ func main() {
 
 	driveTokenName := ""
 	registerChatRuleName := ""
+	displayChatRuleName := ""
 	var driveConfig gdrive.DriveConfig
 	var saveChan chan bool
 	if monitorActivity {
@@ -360,9 +361,10 @@ func main() {
 			Description: config.Require("PARAMETER_DESCRIPTION_REGISTER_CHAT_RULE_CMD_1"), Required: true,
 		}, {
 			Type: discordgo.ApplicationCommandOptionString, Name: "response",
-			Description: config.Require("PARAMETER_DESCRIPTION_REGISTER_CHAT_RULE_CMD_2"), Required: true,
+			Description: config.Require("PARAMETER_DESCRIPTION_REGISTER_CHAT_RULE_CMD_2"),
 		}}
 		registerChatRuleName, cmds = common.AppendCommand(cmds, cmdConfig["REGISTER_CHAT_RULE"], stringParams)
+		displayChatRuleName, cmds = common.AppendCommand(cmds, cmdConfig["DISPLAY_CHAT_RULE"], nil)
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
 			if u.Member != nil && !common.IdInSet(u.Member.Roles, adminitrativeRoleIds) {
@@ -432,6 +434,10 @@ func main() {
 	})
 	common.AddNonEmpty(execCmds, registerChatRuleName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		registerChatResponseCmd(s, i, chatReponsePath, keywordToResponse, &keywordToResponseMutex, infos)
+	})
+	baseDisplayChatRuleMsg := config.GetString("MESSAGE_CMD_DISPLAY")
+	common.AddNonEmpty(execCmds, displayChatRuleName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		displayChatResponseCmd(s, i, baseDisplayChatRuleMsg, keywordToResponse, &keywordToResponseMutex, infos)
 	})
 
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {

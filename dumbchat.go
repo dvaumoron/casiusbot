@@ -29,33 +29,52 @@ import (
 	"github.com/dvaumoron/casiusbot/common"
 )
 
+const defaultKey = "default"
+
 func manageChatResponse(s *discordgo.Session, u *discordgo.MessageCreate, botId string, channelManager common.ChannelSenderManager, keywordToResponse map[string]string, keywordToResponseMutex *sync.RWMutex) {
 	for _, user := range u.Mentions {
 		if user.ID == botId {
-			content := u.Content
-			keywordToResponseMutex.RLock()
-			defer keywordToResponseMutex.RUnlock()
-			for keyword, response := range keywordToResponse {
-				if strings.Contains(content, keyword) {
-					channelId := u.ChannelID
-					channelManager.AddChannel(channelId)
-					channelManager.Get(channelId) <- common.MultipartMessage{Message: response}
-					break
-				}
+			if response, ok := chooseResponse(u.Content, keywordToResponse, keywordToResponseMutex); ok {
+				channelId := u.ChannelID
+				channelManager.AddChannel(channelId)
+				channelManager.Get(channelId) <- common.MultipartMessage{Message: response}
 			}
-			break
+			return
 		}
 	}
 }
 
+func chooseResponse(content string, keywordToResponse map[string]string, keywordToResponseMutex *sync.RWMutex) (string, bool) {
+	contentLower := strings.ToLower(content)
+
+	keywordToResponseMutex.RLock()
+	defer keywordToResponseMutex.RUnlock()
+	for keyword, response := range keywordToResponse {
+		if strings.Contains(contentLower, keyword) {
+			return response, true
+		}
+
+	}
+	response, ok := keywordToResponse[defaultKey]
+	return response, ok
+}
+
 func registerChatResponseCmd(s *discordgo.Session, i *discordgo.InteractionCreate, chatReponsePath string, keywordToResponse map[string]string, keywordToResponseMutex *sync.RWMutex, infos common.GuildAndConfInfo) {
 	common.AuthorizedCmd(s, i, infos, func() string {
-		if options := i.ApplicationCommandData().Options; len(options) > 1 {
-			keyword := options[0].StringValue()
-			response := options[1].StringValue()
+		options := i.ApplicationCommandData().Options
+		if optionsLen := len(options); optionsLen != 0 {
+			keyword := strings.ToLower(options[0].StringValue())
+			response := ""
+			if optionsLen > 1 {
+				response = strings.TrimSpace(options[1].StringValue())
+			}
 
 			keywordToResponseMutex.Lock()
-			keywordToResponse[keyword] = response
+			if response == "" {
+				delete(keywordToResponse, keyword)
+			} else {
+				keywordToResponse[keyword] = response
+			}
 			keywordToResponseMutex.Unlock()
 
 			data, err := json.Marshal(keywordToResponse)
@@ -70,5 +89,13 @@ func registerChatResponseCmd(s *discordgo.Session, i *discordgo.InteractionCreat
 			}
 		}
 		return infos.Msgs.ErrGlobal
+	})
+}
+
+func displayChatResponseCmd(s *discordgo.Session, i *discordgo.InteractionCreate, baseMsg string, keywordToResponse map[string]string, keywordToResponseMutex *sync.RWMutex, infos common.GuildAndConfInfo) {
+	common.AuthorizedCmd(s, i, infos, func() string {
+		keywordToResponseMutex.RLock()
+		defer keywordToResponseMutex.RUnlock()
+		return common.BuildMsgWithNameValueList(baseMsg, keywordToResponse)
 	})
 }
