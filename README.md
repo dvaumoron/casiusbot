@@ -17,4 +17,4 @@ Optionally (when corresponding configuration is present) :
 - randomly change its game status
 - check regularly [RSS](https://www.rssboard.org/rss-specification) feeds and send messages with the links in a channel (can filter link with [regexp](https://en.wikipedia.org/wiki/Regular_expression) or translate an extract (call [DeepL API](https://www.deepl.com/)))
 - monitor user activity (number of messages, last message date, last vocal interaction date) with regular save and a command to retrieve those data as a csv file (or save to a [Google Drive](https://drive.google.com/) folder)
-- respond to message sended to it depending on keyword response rules
+- respond to message sended to it depending on keyword response rules (configured with a json file and can be changed by commands)
