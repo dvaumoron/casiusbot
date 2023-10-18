@@ -53,7 +53,6 @@ func chooseResponse(content string, keywordToResponse map[string]string, keyword
 		if strings.Contains(contentLower, keyword) {
 			return response, true
 		}
-
 	}
 	response, ok := keywordToResponse[defaultKey]
 	return response, ok
