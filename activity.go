@@ -66,9 +66,16 @@ func manageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, da
 		case sendFile := <-saveTickReceiver:
 			var builder strings.Builder
 			// header
-			builder.WriteString("userId,userName,userNickname,messageCount,lastMessage,lastVocal\n")
+			builder.WriteString("userId,userName,userNickname,messageCount,lastMessage,lastVocal,lastActivity\n")
 			for _, idNames := range loadMemberIdAndNames(session, infos) {
 				activity := activities[idNames[0]]
+
+				lastMessage := activity.lastMessage.Format(dateFormat)
+				lastVocal := activity.lastVocal.Format(dateFormat)
+				lastActivity := lastMessage
+				if activity.lastMessage.Before(activity.lastVocal) {
+					lastActivity = lastVocal
+				}
 
 				// user id
 				builder.WriteString(idNames[0])
@@ -81,9 +88,11 @@ func manageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, da
 				builder.WriteByte(',')
 				builder.WriteString(strconv.Itoa(activity.messageCount))
 				builder.WriteByte(',')
-				builder.WriteString(activity.lastMessage.Format(dateFormat))
+				builder.WriteString(lastMessage)
 				builder.WriteByte(',')
-				builder.WriteString(activity.lastVocal.Format(dateFormat))
+				builder.WriteString(lastVocal)
+				builder.WriteByte(',')
+				builder.WriteString(lastActivity)
 				builder.WriteByte('\n')
 			}
 			data := builder.String()
