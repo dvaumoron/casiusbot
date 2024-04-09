@@ -31,7 +31,7 @@ import (
 
 const defaultKey = "default"
 
-func manageChatResponse(s *discordgo.Session, u *discordgo.MessageCreate, botId string, channelManager common.ChannelSenderManager, keywordToResponse map[string]string, keywordToResponseMutex *sync.RWMutex) {
+func manageChatResponse(u *discordgo.MessageCreate, botId string, channelManager common.ChannelSenderManager, keywordToResponse map[string]string, keywordToResponseMutex *sync.RWMutex) {
 	for _, user := range u.Mentions {
 		if user.ID == botId {
 			if response, ok := chooseResponse(u.Content, keywordToResponse, keywordToResponseMutex); ok {

@@ -371,7 +371,7 @@ func main() {
 				activitySender <- memberActivity{userId: u.Author.ID, timestamp: time.Now()}
 			}
 
-			manageChatResponse(s, u, botId, channelManager, keywordToResponse, &keywordToResponseMutex)
+			manageChatResponse(u, botId, channelManager, keywordToResponse, &keywordToResponseMutex)
 		})
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.VoiceStateUpdate) {
