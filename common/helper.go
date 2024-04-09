@@ -253,7 +253,7 @@ func ProcessMembers(guildMembers []*discordgo.Member, userMonitor *IdMonitor, cm
 
 func ExtractNick(member *discordgo.Member) (nick string) {
 	if nick = member.Nick; nick != "" {
-		return nick
+		return
 	}
 	user := member.User
 	if nick = user.GlobalName; nick != "" {
