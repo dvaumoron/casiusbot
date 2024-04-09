@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/PuerkitoBio/goquery v1.8.1
-	github.com/bwmarrin/discordgo v0.27.1
+	github.com/bwmarrin/discordgo v0.28.1
 	github.com/mmcdole/gofeed v1.2.1
 	golang.org/x/oauth2 v0.12.0
 	google.golang.org/api v0.139.0

@@ -251,12 +251,15 @@ func ProcessMembers(guildMembers []*discordgo.Member, userMonitor *IdMonitor, cm
 	return counterError
 }
 
-func ExtractNick(member *discordgo.Member) string {
-	nickname := member.Nick
-	if nickname == "" {
-		nickname = member.User.Username
+func ExtractNick(member *discordgo.Member) (nick string) {
+	if nick = member.Nick; nick != "" {
+		return nick
 	}
-	return nickname
+	user := member.User
+	if nick = user.GlobalName; nick != "" {
+		return
+	}
+	return user.Username
 }
 
 func createMessageSender(session *discordgo.Session, channelId string) chan<- MultipartMessage {
