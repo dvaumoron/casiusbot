@@ -20,6 +20,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/csv"
 	"log"
 	"os"
 	"path/filepath"
@@ -65,8 +66,9 @@ func manageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, da
 			activities[mActivity.userId] = activity
 		case sendFile := <-saveTickReceiver:
 			var builder strings.Builder
+			writer := csv.NewWriter(&builder)
 			// header
-			builder.WriteString("userId,userName,userNickname,messageCount,lastMessage,lastVocal,lastActivity\n")
+			writer.Write([]string{"userId", "userName", "userNickname", "messageCount", "lastMessage", "lastVocal", "lastActivity"})
 			for _, idNames := range loadMemberIdAndNames(session, infos) {
 				activity := activities[idNames[0]]
 
@@ -77,24 +79,9 @@ func manageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, da
 					lastActivity = lastVocal
 				}
 
-				// user id
-				builder.WriteString(idNames[0])
-				builder.WriteByte(',')
-				// user name
-				builder.WriteString(idNames[1])
-				builder.WriteByte(',')
-				// user nickname
-				builder.WriteString(idNames[2])
-				builder.WriteByte(',')
-				builder.WriteString(strconv.Itoa(activity.messageCount))
-				builder.WriteByte(',')
-				builder.WriteString(lastMessage)
-				builder.WriteByte(',')
-				builder.WriteString(lastVocal)
-				builder.WriteByte(',')
-				builder.WriteString(lastActivity)
-				builder.WriteByte('\n')
+				writer.Write([]string{idNames[0], idNames[1], idNames[2], strconv.Itoa(activity.messageCount), lastMessage, lastVocal, lastActivity})
 			}
+			writer.Flush()
 			data := builder.String()
 
 			if sendFile {
