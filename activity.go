@@ -19,8 +19,8 @@
 package main
 
 import (
-	"bufio"
 	"encoding/csv"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -101,33 +101,37 @@ func loadActivities(activityPath string, dateFormat string) map[string]activityD
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	scanner.Scan() // skip header
-	for scanner.Scan() {
-		splitted := strings.Split(scanner.Text(), ",")
-		messageCount, err := strconv.Atoi(splitted[3])
+	reader := csv.NewReader(file)
+	reader.Read() // skip header
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Println("Parsing saved activities failed :", err)
+			return map[string]activityData{} // after error, restart monitoring with empty data
+		}
+
+		messageCount, err := strconv.Atoi(record[3])
 		if err != nil {
 			log.Println("Parsing message count failed :", err)
 			return map[string]activityData{} // after error, restart monitoring with empty data
 		}
-
-		lastMessage, err := time.Parse(dateFormat, splitted[4])
+		lastMessage, err := time.Parse(dateFormat, record[4])
 		if err != nil {
 			log.Println("Parsing last message date failed :", err)
 			return map[string]activityData{} // after error, restart monitoring with empty data
 		}
-		lastVocal, err := time.Parse(dateFormat, splitted[5])
+		lastVocal, err := time.Parse(dateFormat, record[5])
 		if err != nil {
 			log.Println("Parsing last vocal date failed :", err)
 			return map[string]activityData{} // after error, restart monitoring with empty data
 		}
-		activities[splitted[0]] = activityData{
+
+		activities[record[0]] = activityData{
 			messageCount: messageCount, lastMessage: lastMessage, lastVocal: lastVocal,
 		}
-	}
-	if err = scanner.Err(); err != nil {
-		log.Println("Parsing saved activities failed :", err)
-		return map[string]activityData{} // after error, restart monitoring with empty data
 	}
 	return activities
 }
