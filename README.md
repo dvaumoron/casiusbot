@@ -12,6 +12,7 @@ Optionally (when corresponding configuration is present) :
 - add a role on joining user (could be the default, a prefix role or a forbidden role)
 - add a command to display a count of users by role
 - add a command to reset all users to default role (except for user with forbidden roles)
+- add a commands to reset role on users with role from a group (except for user with forbidden roles)
 - add commands to enforce or remove all prefixes (without changing roles)
 - send message on nickname change
 - randomly change its game status
