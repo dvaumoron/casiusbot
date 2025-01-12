@@ -446,8 +446,9 @@ func main() {
 	cmdAndRoleIds = nil
 
 	for cmdReset, group := range cmdResetToGroup {
+		resetGroupMsgs := msgs.ReplaceCmdPlaceHolder(cmdReset)
 		execCmds[cmdReset] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			common.MembersCmd(s, i, cmdChannelSender, infos, resetAllMsgs, &userMonitor, func(guildMember *discordgo.Member) int {
+			common.MembersCmd(s, i, cmdChannelSender, infos, resetGroupMsgs, &userMonitor, func(guildMember *discordgo.Member) int {
 				if common.IdMatch(guildMember.Roles, roleIdToGroup, group) {
 					return resetRole(s, infos, guildMember)
 				}

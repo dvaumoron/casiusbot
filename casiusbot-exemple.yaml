@@ -93,9 +93,9 @@ CMDS:
   RESET_ALL:
     CMD: "reset-all"
     DESCRIPTION: "Reset role for all users"
-  RESET_ROLE_GROUP:
-    CMD: "reset-{{role-group}}"
-    DESCRIPTION: "Reset role from {{role-group}} group on all users"
+  RESET_GROUP:
+    CMD: "reset-{{group}}"
+    DESCRIPTION: "Reset role from {{group}} group on all users"
   USER_ACTIVITIES:
     CMD: "user-activities"
     DESCRIPTION: "Retrieve user activities data"
