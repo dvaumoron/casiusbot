@@ -37,7 +37,7 @@ func main() {
 	defer common.LogBeforeShutdown()
 
 	config := common.ReadConfig()
-	roleNameToPrefix, prefixes, cmdAndRoleNames, specialRoles := config.GetPrefixConfig()
+	roleNameToPrefix, prefixes, cmdRoleDescs, specialRoles := config.GetPrefixConfig()
 
 	errGlobalCmdMsg := config.GetString("MESSAGE_CMD_GLOBAL_ERROR")
 	errPartialCmdMsg := config.GetString("MESSAGE_CMD_PARTIAL_ERROR")
@@ -98,13 +98,15 @@ func main() {
 
 	cmdConfig := config.GetCommandConfig()
 
-	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdAndRoleNames)+8)
+	cmds := make([]*discordgo.ApplicationCommand, 0, len(cmdRoleDescs)+8)
 	applyName, cmds := common.AppendCommand(cmds, cmdConfig["APPLY"], nil)
 	cleanName, cmds := common.AppendCommand(cmds, cmdConfig["CLEAN"], nil)
 	resetName, cmds := common.AppendCommand(cmds, cmdConfig["RESET"], nil)
 	resetAllName, cmds := common.AppendCommand(cmds, cmdConfig["RESET_ALL"], nil)
 	countName, cmds := common.AppendCommand(cmds, cmdConfig["COUNT"], nil)
 	roleCmdDesc := config.Require("DESCRIPTION_ROLE_CMD")
+
+	resetGroupTemplates := cmdConfig["RESET_GROUP"]
 
 	userActivitiesName := ""
 	monitorActivity := activityPath != "" && saveActivityInterval > 0
@@ -212,20 +214,40 @@ func main() {
 	guildRoles = nil
 
 	cmdRoleIds := common.StringSet{}
-	cmdAndRoleIds := make([][2]string, 0, len(cmdAndRoleNames))
-	for _, cmdAndRoleName := range cmdAndRoleNames {
-		roleId := roleNameToId[cmdAndRoleName[1]]
+	cmdAndRoleIds := make([][2]string, 0, len(cmdRoleDescs))
+	roleIdToGroup := make(map[string]string, len(cmdRoleDescs))
+	cmdRoleGroups := make(common.StringSet, len(cmdRoleDescs))
+	for _, cmdRoleDesc := range cmdRoleDescs {
+		roleId := roleNameToId[cmdRoleDesc.Name]
 		if roleId == "" {
-			panic("Unrecognized role name : " + cmdAndRoleName[1])
+			panic("Unrecognized role name : " + cmdRoleDesc.Name)
 		}
 		_, cmds = common.AppendCommand(cmds, [2]string{
-			cmdAndRoleName[0], strings.ReplaceAll(roleCmdDesc, common.RolePlaceHolder, roleIdToDisplayName[roleId]),
+			cmdRoleDesc.Cmd, strings.ReplaceAll(roleCmdDesc, common.RolePlaceHolder, roleIdToDisplayName[roleId]),
 		}, nil)
 		cmdRoleIds[roleId] = common.Empty{}
-		cmdAndRoleIds = append(cmdAndRoleIds, [2]string{cmdAndRoleName[0], roleId})
+		cmdAndRoleIds = append(cmdAndRoleIds, [2]string{cmdRoleDesc.Name, roleId})
+
+		if group := cmdRoleDesc.Group; group != "" {
+			roleIdToGroup[roleId] = group
+			cmdRoleGroups[group] = common.Empty{}
+		}
 	}
 	// for GC cleaning
-	cmdAndRoleNames = nil
+	cmdRoleDescs = nil
+
+	cmdResetToGroup := make(map[string]string, len(cmdRoleGroups))
+	for group := range cmdRoleGroups {
+		var cmdReset string
+		cmdReset, cmds = common.AppendCommand(cmds, [2]string{
+			strings.ReplaceAll(resetGroupTemplates[0], common.GroupPlaceHolder, group),
+			strings.ReplaceAll(resetGroupTemplates[1], common.GroupPlaceHolder, group),
+		}, nil)
+		cmdResetToGroup[cmdReset] = group
+	}
+
+	// for GC cleaning
+	cmdRoleGroups = nil
 
 	authorizedRoleIds := config.GetIdSet("AUTHORIZED_ROLES", roleNameToId)
 	forbiddenRoleIds := config.GetIdSet("FORBIDDEN_ROLES", roleNameToId)
@@ -422,6 +444,20 @@ func main() {
 	}
 	// for GC cleaning
 	cmdAndRoleIds = nil
+
+	for cmdReset, group := range cmdResetToGroup {
+		execCmds[cmdReset] = func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			common.MembersCmd(s, i, cmdChannelSender, infos, resetAllMsgs, &userMonitor, func(guildMember *discordgo.Member) int {
+				if common.IdMatch(guildMember.Roles, roleIdToGroup, group) {
+					return resetRole(s, infos, guildMember)
+				}
+				return 0
+			})
+		}
+	}
+
+	// for GC cleaning
+	cmdResetToGroup = nil
 
 	common.AddNonEmpty(execCmds, userActivitiesName, func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		common.AuthorizedCmd(s, i, infos, func() string {

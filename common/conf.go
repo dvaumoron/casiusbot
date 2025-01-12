@@ -36,6 +36,12 @@ const (
 	notIntegerMsg = "Configuration %v contains a non integer : %v (%T)"
 )
 
+type CmdRoleDesc struct {
+	Cmd   string
+	Name  string
+	Group string
+}
+
 type Config struct {
 	basePath string
 	data     map[string]any
@@ -80,7 +86,7 @@ func (c Config) initLog() {
 		Filename:   c.updatePath(logPath),
 		MaxSize:    1, // megabytes
 		MaxBackups: 5,
-		MaxAge:     28, //days
+		MaxAge:     28, // days
 	}, os.Stderr))
 }
 
@@ -97,7 +103,7 @@ func (c Config) Require(valueConfName string) string {
 	return value
 }
 
-func (c Config) GetPrefixConfig() (map[string]string, []string, [][2]string, []string) {
+func (c Config) GetPrefixConfig() (map[string]string, []string, []CmdRoleDesc, []string) {
 	rules, ok := c.data["PREFIX_RULES"].([]any)
 	if !ok {
 		panic("Malformed PREFIX_RULES")
@@ -105,8 +111,8 @@ func (c Config) GetPrefixConfig() (map[string]string, []string, [][2]string, []s
 
 	nameToPrefix := map[string]string{}
 	prefixes := []string{}
-	cmdAndNames := [][2]string{}
-	specialRoles := []string{}
+	specialRoleNames := []string{}
+	cmdRoleDescs := make([]CmdRoleDesc, 0, len(rules))
 	for _, rule := range rules {
 		casted, ok := rule.(map[string]any)
 		if !ok {
@@ -125,13 +131,18 @@ func (c Config) GetPrefixConfig() (map[string]string, []string, [][2]string, []s
 			prefixes = append(prefixes, prefix)
 
 			if cmd, _ := casted["CMD"].(string); cmd == "" {
-				specialRoles = append(specialRoles, name)
+				specialRoleNames = append(specialRoleNames, name)
 			} else {
-				cmdAndNames = append(cmdAndNames, [2]string{cmd, name})
+				group, _ := casted["GROUP"].(string)
+				cmdRoleDescs = append(cmdRoleDescs, CmdRoleDesc{
+					Cmd:   cmd,
+					Name:  name,
+					Group: group,
+				})
 			}
 		}
 	}
-	return nameToPrefix, prefixes, cmdAndNames, specialRoles
+	return nameToPrefix, prefixes, cmdRoleDescs, specialRoleNames
 }
 
 func (c Config) GetCommandConfig() map[string][2]string {

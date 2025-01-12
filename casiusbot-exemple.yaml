@@ -6,14 +6,18 @@ DEEPL_API_URL: "https://api-free.deepl.com"
 # without LOG_PATH, output default to casiusbot.log
 LOG_PATH: ""
 PREFIX_RULES:
-  # /roleCmd will add the role RoleName1 to the user
   - ROLE: "RoleName1"
     PREFIX: "foo"
-    CMD: "roleCmd"
-  # RoleName2 has no command associated, meaning that it is a special role which take precedence over the others
-  # (it must be set within the discord interface to see the prefix added to users)
+    CMD: "roleCmd" # /roleCmd will add the role RoleName1 to the user
+    GROUP: "Group"
   - ROLE: "RoleName2"
     PREFIX: "bar"
+    CMD: "roleCmd2" # /roleCmd2 will add the role RoleName2 to the user
+    GROUP: "Group" # /reset-Group will remove roles Rolename1 and RoleName2 from all users
+  # RoleName3 has no command associated, meaning that it is a special role which take precedence over the others
+  # (it must be set within the discord interface to see the prefix added to users)
+  - ROLE: "RoleName3"
+    PREFIX: "baz"
 
 # authorized roles could launch apply, clean and reset all commands
 AUTHORIZED_ROLES: []
@@ -89,6 +93,9 @@ CMDS:
   RESET_ALL:
     CMD: "reset-all"
     DESCRIPTION: "Reset role for all users"
+  RESET_ROLE_GROUP:
+    CMD: "reset-{{role-group}}"
+    DESCRIPTION: "Reset role from {{role-group}} group on all users"
   USER_ACTIVITIES:
     CMD: "user-activities"
     DESCRIPTION: "Retrieve user activities data"

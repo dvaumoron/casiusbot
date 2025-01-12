@@ -42,10 +42,13 @@ const (
 	CmdPlaceHolder      = "{{cmd}}"
 	NumErrorPlaceHolder = "{{numError}}"
 	RolePlaceHolder     = "{{role}}"
+	GroupPlaceHolder    = "{{group}}"
 )
 
-type Empty = struct{}
-type StringSet = map[string]Empty
+type (
+	Empty     = struct{}
+	StringSet = map[string]Empty
+)
 
 type GuildAndConfInfo struct {
 	GuildId                    string
@@ -192,6 +195,16 @@ func IdInSet(ids []string, idSet StringSet) bool {
 	}
 	return false
 }
+
+func IdMatch(ids []string, idToValue map[string]string, targetValue string) bool {
+	for _, id := range ids {
+		if value, ok := idToValue[id]; ok && value == targetValue {
+			return true
+		}
+	}
+	return false
+}
+
 
 func AppendCommand(cmds []*discordgo.ApplicationCommand, cmdData [2]string, options []*discordgo.ApplicationCommandOption) (string, []*discordgo.ApplicationCommand) {
 	if cmdData[0] != "" {
