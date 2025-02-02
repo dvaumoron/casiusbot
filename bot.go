@@ -226,7 +226,7 @@ func main() {
 			cmdRoleDesc.Cmd, strings.ReplaceAll(roleCmdDesc, common.RolePlaceHolder, roleIdToDisplayName[roleId]),
 		}, nil)
 		cmdRoleIds[roleId] = common.Empty{}
-		cmdAndRoleIds = append(cmdAndRoleIds, [2]string{cmdRoleDesc.Name, roleId})
+		cmdAndRoleIds = append(cmdAndRoleIds, [2]string{cmdRoleDesc.Cmd, roleId})
 
 		if group := cmdRoleDesc.Group; group != "" {
 			roleIdToGroup[roleId] = group
