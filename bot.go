@@ -261,20 +261,12 @@ func main() {
 	defaultRole = ""
 
 	// merge the two categories
-	forbiddenAndignoredRoleIds := common.StringSet{}
+	forbiddenAndIgnoredRoleIds := common.StringSet{}
 	for roleId := range forbiddenRoleIds {
-		forbiddenAndignoredRoleIds[roleId] = common.Empty{}
+		forbiddenAndIgnoredRoleIds[roleId] = common.Empty{}
 	}
 	for roleId := range ignoredRoleIds {
-		forbiddenAndignoredRoleIds[roleId] = common.Empty{}
-	}
-
-	adminitrativeRoleIds := common.StringSet{}
-	for roleId := range forbiddenAndignoredRoleIds {
-		adminitrativeRoleIds[roleId] = common.Empty{}
-	}
-	for roleId := range authorizedRoleIds {
-		adminitrativeRoleIds[roleId] = common.Empty{}
+		forbiddenAndIgnoredRoleIds[roleId] = common.Empty{}
 	}
 
 	specialRoleIds := common.InitIdSet(specialRoles, roleNameToId)
@@ -299,9 +291,9 @@ func main() {
 	prefixRoleIds = nil
 
 	infos := common.GuildAndConfInfo{
-		GuildId: guildId, OwnerId: ownerId, DefaultRoleId: defaultRoleId, AuthorizedRoleIds: authorizedRoleIds,
-		ForbiddenRoleIds: forbiddenRoleIds, IgnoredRoleIds: ignoredRoleIds, ForbiddenAndignoredRoleIds: forbiddenAndignoredRoleIds,
-		AdminitrativeRoleIds: adminitrativeRoleIds, CmdRoleIds: cmdRoleIds, SpecialRoleIds: specialRoleIds,
+		GuildId: guildId, OwnerId: ownerId, DefaultRoleId: defaultRoleId,
+		AuthorizedRoleIds: authorizedRoleIds, ForbiddenRoleIds: forbiddenRoleIds, IgnoredRoleIds: ignoredRoleIds,
+		ForbiddenAndIgnoredRoleIds: forbiddenAndIgnoredRoleIds, CmdRoleIds: cmdRoleIds, SpecialRoleIds: specialRoleIds,
 		RoleIdToPrefix: roleIdToPrefix, Prefixes: prefixes, RoleIdToDisplayName: roleIdToDisplayName, Msgs: msgs,
 	}
 
@@ -389,7 +381,7 @@ func main() {
 		displayChatRuleName, cmds = common.AppendCommand(cmds, cmdConfig["DISPLAY_CHAT_RULE"], nil)
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.MessageCreate) {
-			if u.Member != nil && !common.IdInSet(u.Member.Roles, adminitrativeRoleIds) {
+			if u.Member != nil {
 				activitySender <- memberActivity{userId: u.Author.ID, timestamp: time.Now()}
 			}
 
@@ -397,7 +389,7 @@ func main() {
 		})
 
 		session.AddHandler(func(s *discordgo.Session, u *discordgo.VoiceStateUpdate) {
-			if u.Member != nil && !common.IdInSet(u.Member.Roles, adminitrativeRoleIds) {
+			if u.Member != nil {
 				activitySender <- memberActivity{userId: u.UserID, timestamp: time.Now(), vocal: true}
 			}
 		})

@@ -87,7 +87,7 @@ func manageActivity(session *discordgo.Session, saveTickReceiver <-chan bool, da
 			if sendFile {
 				dataSender <- common.MultipartMessage{FileName: activityFileName, FileData: data, ErrorMsg: errorMsg}
 			}
-			os.WriteFile(activityPath, []byte(data), 0644)
+			os.WriteFile(activityPath, []byte(data), 0o644)
 		}
 	}
 }
@@ -145,10 +145,11 @@ func loadMemberIdAndNames(session *discordgo.Session, infos common.GuildAndConfI
 
 	names := make([][3]string, 0, len(guildMembers))
 	for _, member := range guildMembers {
-		userId := member.User.ID
-		if userId != infos.OwnerId && !common.IdInSet(member.Roles, infos.AdminitrativeRoleIds) {
-			names = append(names, [3]string{userId, member.User.Username, common.ExtractNick(member)})
-		}
+		names = append(names, [3]string{
+			member.User.ID,
+			member.User.Username,
+			common.ExtractNick(member),
+		})
 	}
 	return names
 }

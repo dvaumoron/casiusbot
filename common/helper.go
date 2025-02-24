@@ -57,8 +57,7 @@ type GuildAndConfInfo struct {
 	AuthorizedRoleIds          StringSet
 	ForbiddenRoleIds           StringSet
 	IgnoredRoleIds             StringSet
-	ForbiddenAndignoredRoleIds StringSet
-	AdminitrativeRoleIds       StringSet
+	ForbiddenAndIgnoredRoleIds StringSet
 	CmdRoleIds                 StringSet
 	SpecialRoleIds             StringSet
 	RoleIdToPrefix             map[string]string
@@ -204,7 +203,6 @@ func IdMatch(ids []string, idToValue map[string]string, targetValue string) bool
 	}
 	return false
 }
-
 
 func AppendCommand(cmds []*discordgo.ApplicationCommand, cmdData [2]string, options []*discordgo.ApplicationCommandOption) (string, []*discordgo.ApplicationCommand) {
 	if cmdData[0] != "" {

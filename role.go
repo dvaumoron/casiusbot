@@ -126,7 +126,7 @@ func extractRoleCountWithFilter(guildMembers []*discordgo.Member, filterRoleIds 
 
 func resetRole(s *discordgo.Session, infos common.GuildAndConfInfo, guildMember *discordgo.Member) int {
 	userId := guildMember.User.ID
-	if userId != infos.OwnerId && !common.IdInSet(guildMember.Roles, infos.ForbiddenAndignoredRoleIds) {
+	if userId != infos.OwnerId && !common.IdInSet(guildMember.Roles, infos.ForbiddenAndIgnoredRoleIds) {
 		return addRole(s, nil, false, infos.DefaultRoleId, infos, guildMember)
 	}
 	return 0
